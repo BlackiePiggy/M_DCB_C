@@ -12,10 +12,11 @@ typedef struct {
 } SitesInfo;
 
 typedef struct {
-    double* P1;
-    double* P2;
-    double* L1;
-    double* L2;
+    //P1，P2，L1，L2均为二维double数组
+    double **P1;
+    double **P2;
+    double **L1;
+    double **L2;
 } Obs;
 
 // -----------------------------Setting--------------------------------------
@@ -78,7 +79,23 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
     for (int i = 0; i < r_file_num; i++) {
         psitesInfo->coor[i] = (double *) malloc(256 * sizeof(double)); // 假设文件名最大长度为256
     }
-
+    //为obs结构体内的数组分配内存，每个变量均需要一个(2880,32)尺寸的二维double数组
+    pobs->P1 = (double **) malloc(32 * sizeof(double *));
+    for (int i = 0; i < 32; i++) {
+        pobs->P1[i] = (double *) malloc(2880 * sizeof(double));
+    }
+    pobs->P2 = (double **) malloc(32 * sizeof(double *));
+    for (int i = 0; i < 32; i++) {
+        pobs->P2[i] = (double *) malloc(2880 * sizeof(double));
+    }
+    pobs->L1 = (double **) malloc(32 * sizeof(double *));
+    for (int i = 0; i < 32; i++) {
+        pobs->L1[i] = (double *) malloc(2880 * sizeof(double));
+    }
+    pobs->L2 = (double **) malloc(32 * sizeof(double *));
+    for (int i = 0; i < 32; i++) {
+        pobs->L2[i] = (double *) malloc(2880 * sizeof(double));
+    }
 
     int index = 0;
     int i = 0;
@@ -100,6 +117,9 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
 
     char line[256]; // 假设一行最多包含256个字符
     char filename[256];
+    int obst_n; char **obst;
+    double h; double m; double s; int ep = 0;
+    int *loc;
 
     for (int i = 0; i < r_file_num; i++) {
         printf("Reading File No.%d :%s\n", i + 1, psitesInfo->name[i]);
@@ -127,7 +147,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
             //-----get the GPS observables' types------
             if (strstr(line, "# / TYPES OF OBSERV") != NULL){
                 //printf("%s", line);
-                int obst_n; char **obst;
+
                 if(sscanf(line, "%d", &obst_n) == 1){
                     if (obst_n > 9){
                         printf("obst_n > 9!!!!!");
@@ -148,7 +168,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                                 break;
                             }
                         }
-                        int *loc;
+
                         loc = (int *) malloc(obst_n * sizeof(int));
                         for (int j = 0; j < obst_n; j++){
                             //比较obst[j]和"L1"字符串是否相同，如果相同，则给loc[0]赋值为j
@@ -170,18 +190,123 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
             }
             //----start get GPS observables------------
             if (strstr(line, "END OF HEADER") != NULL) {
-                while (fgets(line, sizeof(line), file)){
+                while (1){
+                    //读取下一行
+                    fgets(line, sizeof(line), file);
+                    //如果line不是字符串，则跳出循环
+                    if (line == NULL){
+                        break;
+                    }
                     //如果line长度大于32个个字符，并且line的第33个字符是"G"或"R"或空格，则执行下面的语句
                     if (strlen(line) > 32 && (line[32] == 'G' || line[32] == 'R' || line[32] == ' ')){
                         //将line的第11到第12个字符转换成double类型，再赋值给h
-                        double h; double m; double s; double ep;
+
                         if (sscanf(line + 11, "%1lf", &h) == 1){
                         }
                         if (sscanf(line + 14, "%1lf", &m) == 1){
                         }
-                        if (sscanf(line + 17, "%10lf", &s) == 1){
+                        if (sscanf(line + 16, "%10lf", &s) == 1){
                         }
                         ep = h*120 + m*2 + s/30 + 1;
+                    }
+                    //---get satellite number----
+                    int nsat; int *sv_G;
+                    //取出line的第31到32个字符，转换成int类型，再赋值给nsat
+                    if (sscanf(line + 30, "%2d", &nsat) == 1){
+                    }
+                    //给sv_G申请nsat个int类型的内存，并将数组中每个值赋值为0
+                    sv_G = (int *) malloc(nsat * sizeof(int));
+                    for (int j = 0; j < nsat; j++){
+                        sv_G[j] = 0;
+                    }
+                    if (nsat>12){
+                        for(int j = 0; j < 12; j++){
+                            if (line[29+3*(j+1)] == 'G'){
+                                //取出line的第31+3*j到32+3*j个字符，转换成int类型，再赋值给sv_G[j]
+                                if (sscanf(line + 30 + 3*(j+1), "%2d", &sv_G[j]) == 1){
+                                }
+                            }
+                        }
+                        //读取下一行
+                        fgets(line, sizeof(line), file);
+                        if (nsat<25){
+                            for (int j = 0; j < nsat-12; j++){
+                                if (line[29+3*(j+1)] == 'G' || line[32] == ' '){
+                                    if (sscanf(line + 30 + 3*(j+1), "%2d", &sv_G[j+12]) == 1){
+                                    }
+                                }
+                            }
+                        }
+                    }else{
+                        for(int j = 0; j < nsat; j++){
+                            if (line[29+3*(j+1)] == 'G' || line[32] == ' '){
+                                //取出line的第32+3*j到32+3*j+2个字符，转换成int类型，再赋值给sv_G[j]
+                                if (sscanf(line + 30 + 3*j, "%2d", &sv_G[j]) == 1){
+                                }
+                            }
+                        }
+                    }
+
+                    //---get the observations----
+                    for (int j = 0; j < nsat; j++){
+                        fgets(line, sizeof(line), file);
+                        double *obs_temp;
+                        obs_temp = (double *) malloc(obst_n * sizeof(double));
+
+                        if (obst_n>5){
+                            if (sv_G[j] == 0){
+                                fgets(line, sizeof(line), file);
+                                continue;
+                            }
+                            for (int k = 0; k < 5; k++){
+                                //判断line的长度，如果大于16*(k+1)-3，则执行下面的语句
+                                if (strlen(line) > 16*(k+1)-3){
+                                    //strcmp(line(16*j-15:16*j-2),'              '),如果line的第15*(k+1)-15到第15*(k+1)-2个字符是空格，则执行下面的语句
+                                    if (strcmp(line + 16*k, "              ") == 0){
+                                        continue;
+                                    }
+                                    //取出line的第15*(j+1)-15至第15*(j+1)-2个字符，转换成double类型，再赋值给obs_temp[j]
+                                    if (sscanf(line + 16*k, "%14lf", &obs_temp[k]) == 1){
+                                    }
+                                }
+                            }
+                            fgets(line, sizeof(line), file);
+                            for (int k = 0; k < obst_n-5; k++) {
+                                // 判断line的长度，如果大于16*(k+1)-3，则执行下面的语句
+                                if (strlen(line) > 16*(k+1)-3) {
+                                    // strcmp(line + 16*k, "              "), 如果line的第16*k至第16*k+14个字符是空格，则执行下面的语句
+                                    if (strcmp(line + 16*k, "              ") == 0) {
+                                        continue;
+                                    }
+                                    // 取出line的第16*k至第16*k+14个字符，转换成double类型，再赋值给obs_temp[k+5]
+                                    // 注意：C语言中数组索引从0开始，因此对应MATLAB中的j+5需要在C语言中调整为k+5
+                                    if (sscanf(line + 16*k, "%14lf", &obs_temp[k+5]) == 1) {
+                                        // 成功转换字符串为double并赋值
+                                    }
+                                }
+                            }
+                        }else{
+                            if (sv_G[j] == 0){
+                                fgets(line, sizeof(line), file);
+                                continue;
+                            }
+                            for (int k = 0; k < obst_n; k++){
+                                //判断line的长度，如果大于16*(k+1)-3，则执行下面的语句
+                                if (strlen(line) > 16*(k+1)-3){
+                                    //strcmp(line(16*j-15:16*j-2),'              '),如果line的第15*(k+1)-15到第15*(k+1)-2个字符是空格，则执行下面的语句
+                                    if (strcmp(line + 16*k, "              ") == 0){
+                                        continue;
+                                    }
+                                    //取出line的第15*(j+1)-15至第15*(j+1)-2个字符，转换成double类型，再赋值给obs_temp[j]
+                                    if (sscanf(line + 16*k, "%14lf", &obs_temp[k]) == 1){
+                                    }
+                                }
+                            }
+                        }
+                        pobs->L1[ep][sv_G[j]]=obs_temp[loc[0]];
+                        pobs->L2[ep][sv_G[j]]=obs_temp[loc[1]];
+                        pobs->P1[ep][sv_G[j]]=obs_temp[loc[2]];
+                        pobs->P2[ep][sv_G[j]]=obs_temp[loc[3]];
                     }
                 }
             }
