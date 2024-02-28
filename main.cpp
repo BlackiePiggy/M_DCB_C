@@ -31,7 +31,7 @@ int order = 4;// order
 int countFilesInDirectory(const char *folderPath);
 //void free_usage(SitesInfo sitesInfo, int len);
 void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs);
-void writeArrayToFile(FILE *file, double **array);
+void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType);
 
 
 // -----------------------------Main--------------------------------------
@@ -218,10 +218,14 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         // 到达文件结尾，跳出循环
                         break;
                     }
+                    //如果line的值等于"RINEX FILE SPLICE",打印这行内容
+//                    if (strncmp(line, "RINEX FILE SPLICE", 17) == 0){
+//                        printf("%s", line);
+//                    }
                     //如果line长度大于32个个字符，并且line的第33个字符是"G"或"R"或空格，则执行下面的语句
-                    if (strlen(line) > 32 && (line[32] == 'G' || line[32] == 'R' || line[32] == ' ')){
+                    if (strlen(line) > 32 && (line[32] == 'G' || line[32] == 'R')){
                         //将line的第11到第12个字符转换成double类型，再赋值给h
-
+                        h = 0; m = 0; s = 0;
                         if (sscanf(line + 10, "%2lf", &h) == 1){
                         }
                         if (sscanf(line + 13, "%2lf", &m) == 1){
@@ -229,6 +233,8 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         if (sscanf(line + 16, "%10lf", &s) == 1){
                         }
                         ep = h*120 + m*2 + s/30 + 1;
+                    }else{
+                        continue;
                     }
                     //---get satellite number----
                     int nsat; int *sv_G;
@@ -283,7 +289,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                                 //判断line的长度，如果大于16*(k+1)-3，则执行下面的语句
                                 if (strlen(line) > 16*(k+1)-3){
                                     //strcmp(line(16*j-15:16*j-2),'              '),如果line的第15*(k+1)-15到第15*(k+1)-2个字符是空格，则执行下面的语句
-                                    if (strcmp(line + 16*k, "              ") == 0){
+                                    if (strncmp(line + 16*k, "              ", 14) == 0){
                                         continue;
                                     }
                                     //取出line的第15*(j+1)-15至第15*(j+1)-2个字符，转换成double类型，再赋值给obs_temp[j]
@@ -315,7 +321,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                                 //判断line的长度，如果大于16*(k+1)-3，则执行下面的语句
                                 if (strlen(line) > 16*(k+1)-3){
                                     //strcmp(line(16*j-15:16*j-2),'              '),如果line的第15*(k+1)-15到第15*(k+1)-2个字符是空格，则执行下面的语句
-                                    if (strcmp(line + 16*k, "              ") == 0){
+                                    if (strncmp(line + 16*k, "              ",14) == 0){
                                         continue;
                                     }
                                     //取出line的第15*(j+1)-15至第15*(j+1)-2个字符，转换成double类型，再赋值给obs_temp[j]
@@ -324,10 +330,10 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                                 }
                             }
                         }
-                        pobs->L1[ep-1][sv_G[j]]=obs_temp[loc[0]];
-                        pobs->L2[ep-1][sv_G[j]]=obs_temp[loc[1]];
-                        pobs->P1[ep-1][sv_G[j]]=obs_temp[loc[2]];
-                        pobs->P2[ep-1][sv_G[j]]=obs_temp[loc[3]];
+                        pobs->L1[ep-1][sv_G[j]-1]=obs_temp[loc[0]];
+                        pobs->L2[ep-1][sv_G[j]-1]=obs_temp[loc[1]];
+                        pobs->P1[ep-1][sv_G[j]-1]=obs_temp[loc[2]];
+                        pobs->P2[ep-1][sv_G[j]-1]=obs_temp[loc[3]];
                     }
                 }
             }
@@ -345,11 +351,11 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
             fprintf(stderr, "Error opening file for writing\n");
         }
 
-        // Write each array to file
-        writeArrayToFile(outfile, pobs->P1);
-        writeArrayToFile(outfile, pobs->P2);
-        writeArrayToFile(outfile, pobs->L1);
-        writeArrayToFile(outfile, pobs->L2);
+        // Write each array to file with labels
+        writeArrayToFileWithLabels(outfile, pobs->P1, "P1");
+        writeArrayToFileWithLabels(outfile, pobs->P2, "P2");
+        writeArrayToFileWithLabels(outfile, pobs->L1, "L1");
+        writeArrayToFileWithLabels(outfile, pobs->L2, "L2");
 
         // Close file
         fclose(outfile);
@@ -400,15 +406,21 @@ int countFilesInDirectory(const char *folderPath) {
 //    free(sitesInfo.coor);
 //}
 
-// Function to write array to file
-void writeArrayToFile(FILE *file, double **array) {
+// Function to write array to file with labels
+void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType) {
+    // 写入列标签
+    fprintf(file, "%s_TimeStamp", dataType); // 假设第一列为时间戳
+    for (int j = 1; j <= 32; j++) {
+        fprintf(file, ",%s_%d", dataType, j); // 生成并写入标签
+    }
+    fprintf(file, "\n"); // 结束标签行
+
+    // 写入数据
     for (int i = 0; i < 2880; i++) {
+        fprintf(file, "%d", i+1); // 假设第一列为时间戳，此处简化处理
         for (int j = 0; j < 32; j++) {
-            fprintf(file, "%.2f", array[i][j]); // Assuming you want 2 decimal places
-            if (j < 32 - 1) {
-                fprintf(file, ","); // Separate columns with comma
-            }
+            fprintf(file, ",%.2f", array[i][j]);
         }
-        fprintf(file, "\n"); // End of row
+        fprintf(file, "\n");
     }
 }
