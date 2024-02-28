@@ -31,6 +31,8 @@ int order = 4;// order
 int countFilesInDirectory(const char *folderPath);
 //void free_usage(SitesInfo sitesInfo, int len);
 void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs);
+void writeArrayToFile(FILE *file, double **array);
+
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -80,21 +82,39 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
         psitesInfo->coor[i] = (double *) malloc(256 * sizeof(double)); // 假设文件名最大长度为256
     }
     //为obs结构体内的数组分配内存，每个变量均需要一个(2880,32)尺寸的二维double数组
-    pobs->P1 = (double **) malloc(32 * sizeof(double *));
-    for (int i = 0; i < 32; i++) {
-        pobs->P1[i] = (double *) malloc(2880 * sizeof(double));
+    // 分配内存空间给 P1
+    pobs->P1 = (double **)malloc(2880 * sizeof(double *));
+    for (int i = 0; i < 2880; i++) {
+        pobs->P1[i] = (double *)malloc(32 * sizeof(double));
+        for (int j = 0; j < 32; j++) {
+            pobs->P1[i][j] = 0.0; // 初始化为零
+        }
     }
-    pobs->P2 = (double **) malloc(32 * sizeof(double *));
-    for (int i = 0; i < 32; i++) {
-        pobs->P2[i] = (double *) malloc(2880 * sizeof(double));
+    // 分配内存空间给 P2
+    pobs->P2 = (double **)malloc(2880 * sizeof(double *));
+    for (int i = 0; i < 2880; i++) {
+        pobs->P2[i] = (double *)malloc(32 * sizeof(double));
+        for (int j = 0; j < 32; j++) {
+            pobs->P2[i][j] = 0.0; // 初始化为零
+        }
     }
-    pobs->L1 = (double **) malloc(32 * sizeof(double *));
-    for (int i = 0; i < 32; i++) {
-        pobs->L1[i] = (double *) malloc(2880 * sizeof(double));
+
+    // 分配内存空间给 L1
+    pobs->L1 = (double **)malloc(2880 * sizeof(double *));
+    for (int i = 0; i < 2880; i++) {
+        pobs->L1[i] = (double *)malloc(32 * sizeof(double));
+        for (int j = 0; j < 32; j++) {
+            pobs->L1[i][j] = 0.0; // 初始化为零
+        }
     }
-    pobs->L2 = (double **) malloc(32 * sizeof(double *));
-    for (int i = 0; i < 32; i++) {
-        pobs->L2[i] = (double *) malloc(2880 * sizeof(double));
+
+    // 分配内存空间给 L2
+    pobs->L2 = (double **)malloc(2880 * sizeof(double *));
+    for (int i = 0; i < 2880; i++) {
+        pobs->L2[i] = (double *)malloc(32 * sizeof(double));
+        for (int j = 0; j < 32; j++) {
+            pobs->L2[i][j] = 0.0; // 初始化为零
+        }
     }
 
     int index = 0;
@@ -193,17 +213,18 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                 while (1){
                     //读取下一行
                     fgets(line, sizeof(line), file);
-                    //如果line不是字符串，则跳出循环
-                    if (line == NULL){
+                    // 检查是否到达文件结尾
+                    if (feof(file)) {
+                        // 到达文件结尾，跳出循环
                         break;
                     }
                     //如果line长度大于32个个字符，并且line的第33个字符是"G"或"R"或空格，则执行下面的语句
                     if (strlen(line) > 32 && (line[32] == 'G' || line[32] == 'R' || line[32] == ' ')){
                         //将line的第11到第12个字符转换成double类型，再赋值给h
 
-                        if (sscanf(line + 11, "%1lf", &h) == 1){
+                        if (sscanf(line + 10, "%2lf", &h) == 1){
                         }
-                        if (sscanf(line + 14, "%1lf", &m) == 1){
+                        if (sscanf(line + 13, "%2lf", &m) == 1){
                         }
                         if (sscanf(line + 16, "%10lf", &s) == 1){
                         }
@@ -303,16 +324,38 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                                 }
                             }
                         }
-                        pobs->L1[ep][sv_G[j]]=obs_temp[loc[0]];
-                        pobs->L2[ep][sv_G[j]]=obs_temp[loc[1]];
-                        pobs->P1[ep][sv_G[j]]=obs_temp[loc[2]];
-                        pobs->P2[ep][sv_G[j]]=obs_temp[loc[3]];
+                        pobs->L1[ep-1][sv_G[j]]=obs_temp[loc[0]];
+                        pobs->L2[ep-1][sv_G[j]]=obs_temp[loc[1]];
+                        pobs->P1[ep-1][sv_G[j]]=obs_temp[loc[2]];
+                        pobs->P2[ep-1][sv_G[j]]=obs_temp[loc[3]];
                     }
                 }
             }
         }
         // 关闭文件
         fclose(file);
+
+        char sav_filename[256]; // 假设文件名长度不超过256个字符
+
+        sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
+
+        // Open file for writing
+        FILE *outfile = fopen(sav_filename, "w");
+        if (outfile == NULL) {
+            fprintf(stderr, "Error opening file for writing\n");
+        }
+
+        // Write each array to file
+        writeArrayToFile(outfile, pobs->P1);
+        writeArrayToFile(outfile, pobs->P2);
+        writeArrayToFile(outfile, pobs->L1);
+        writeArrayToFile(outfile, pobs->L2);
+
+        // Close file
+        fclose(outfile);
+
+        printf("Data written to file successfully.\n");
+
     }
     printf("Step one: completing !\n");
 }
@@ -356,3 +399,16 @@ int countFilesInDirectory(const char *folderPath) {
 //    }
 //    free(sitesInfo.coor);
 //}
+
+// Function to write array to file
+void writeArrayToFile(FILE *file, double **array) {
+    for (int i = 0; i < 2880; i++) {
+        for (int j = 0; j < 32; j++) {
+            fprintf(file, "%.2f", array[i][j]); // Assuming you want 2 decimal places
+            if (j < 32 - 1) {
+                fprintf(file, ","); // Separate columns with comma
+            }
+        }
+        fprintf(file, "\n"); // End of row
+    }
+}
