@@ -3,7 +3,6 @@
 #include <dirent.h>
 #include <string.h>
 
-
 // 假设 SitesInfo 结构体
 typedef struct {
     char** name;
@@ -45,6 +44,7 @@ int main() {
     Obs obs;
     read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
 
+    printf("Hello, world!\n");
 
     // 释放 sitesInfo 结构体内存
     //free_usage(sitesInfo, len);
@@ -152,6 +152,16 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
             perror("Can't Open File");
         }
 
+        //给pobs结构体内的数组赋初值为0
+        for (int j = 0; j < 2880; j++) {
+            for (int k = 0; k < 32; k++) {
+                pobs->P1[j][k] = 0.0;
+                pobs->P2[j][k] = 0.0;
+                pobs->L1[j][k] = 0.0;
+                pobs->L2[j][k] = 0.0;
+            }
+        }
+
         while (fgets(line, sizeof(line), file)) {
             // -----get receivers coordinates-----------
             if (strstr(line, "APPROX POSITION XYZ") != NULL) {
@@ -218,10 +228,6 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         // 到达文件结尾，跳出循环
                         break;
                     }
-                    //如果line的值等于"RINEX FILE SPLICE",打印这行内容
-//                    if (strncmp(line, "RINEX FILE SPLICE", 17) == 0){
-//                        printf("%s", line);
-//                    }
                     //如果line长度大于32个个字符，并且line的第33个字符是"G"或"R"或空格，则执行下面的语句
                     if (strlen(line) > 32 && (line[32] == 'G' || line[32] == 'R')){
                         //将line的第11到第12个字符转换成double类型，再赋值给h
@@ -233,10 +239,16 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         if (sscanf(line + 16, "%10lf", &s) == 1){
                         }
                         ep = h*120 + m*2 + s/30 + 1;
+
+//                        if (ep == 17){
+//                            printf("ep: %d\n", ep);
+//                        }
                     }else{
                         continue;
                     }
                     //---get satellite number----
+
+                    //debug专用，如果line的值等于下面的字符串，则打印这行内容
                     int nsat; int *sv_G;
                     //取出line的第31到32个字符，转换成int类型，再赋值给nsat
                     if (sscanf(line + 30, "%2d", &nsat) == 1){
@@ -268,7 +280,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         for(int j = 0; j < nsat; j++){
                             if (line[29+3*(j+1)] == 'G' || line[32] == ' '){
                                 //取出line的第32+3*j到32+3*j+2个字符，转换成int类型，再赋值给sv_G[j]
-                                if (sscanf(line + 30 + 3*j, "%2d", &sv_G[j]) == 1){
+                                if (sscanf(line + 30 + 3*(j+1), "%2d", &sv_G[j]) == 1){
                                 }
                             }
                         }
@@ -277,15 +289,20 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                     //---get the observations----
                     for (int j = 0; j < nsat; j++){
                         fgets(line, sizeof(line), file);
+
                         double *obs_temp;
                         obs_temp = (double *) malloc(obst_n * sizeof(double));
+                        //给obs_temp都赋初值为0
+                        for (int k = 0; k < obst_n; k++){
+                            obs_temp[k] = 0;
+                        }
 
                         if (obst_n>5){
                             if (sv_G[j] == 0){
                                 fgets(line, sizeof(line), file);
                                 continue;
                             }
-                            for (int k = 0; k < 5; k++){
+                            for (int k = 0; k < 5; k++){//思朗科技
                                 //判断line的长度，如果大于16*(k+1)-3，则执行下面的语句
                                 if (strlen(line) > 16*(k+1)-3){
                                     //strcmp(line(16*j-15:16*j-2),'              '),如果line的第15*(k+1)-15到第15*(k+1)-2个字符是空格，则执行下面的语句
@@ -294,6 +311,10 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                                     }
                                     //取出line的第15*(j+1)-15至第15*(j+1)-2个字符，转换成double类型，再赋值给obs_temp[j]
                                     if (sscanf(line + 16*k, "%14lf", &obs_temp[k]) == 1){
+//                                        //如果obs_temp[k]的前8位数等于25789317，则打印这行内容
+//                                        if (obs_temp[k] == 25789317.7094){
+//                                            printf("ep: %d\n", ep);
+//                                        }
                                     }
                                 }
                             }
@@ -409,9 +430,9 @@ int countFilesInDirectory(const char *folderPath) {
 // Function to write array to file with labels
 void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType) {
     // 写入列标签
-    fprintf(file, "%s_TimeStamp", dataType); // 假设第一列为时间戳
+    fprintf(file, "%s_Epoch", dataType); // 假设第一列为时间戳
     for (int j = 1; j <= 32; j++) {
-        fprintf(file, ",%s_%d", dataType, j); // 生成并写入标签
+        fprintf(file, ",%s_sv_%d", dataType, j); // 生成并写入标签
     }
     fprintf(file, "\n"); // 结束标签行
 
@@ -419,7 +440,7 @@ void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType
     for (int i = 0; i < 2880; i++) {
         fprintf(file, "%d", i+1); // 假设第一列为时间戳，此处简化处理
         for (int j = 0; j < 32; j++) {
-            fprintf(file, ",%.2f", array[i][j]);
+            fprintf(file, ",%.4f", array[i][j]);
         }
         fprintf(file, "\n");
     }
