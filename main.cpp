@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <string.h>
+#include <math.h>
 
 // 假设 SitesInfo 结构体
 typedef struct {
@@ -19,10 +20,11 @@ typedef struct {
 } Obs;
 
 // -----------------------------Setting--------------------------------------
-const char* r_ipath = "D:\\projects\\M_DCB\\RINEX_files";// rinex
-const char* s_ipath = "D:\\projects\\M_DCB\\SP3_files";// sp3
-const char* i_ipath = "D:\\projects\\M_DCB\\IONEX_files";// ionex
-const char* r_opath = "M_OBS";
+const char* r_ipath = "D:\\projects\\M_DCB_C\\RINEX_files";// rinex
+const char* s_ipath = "D:\\projects\\M_DCB_C\\SP3_files";// sp3
+const char* s_opath = "D:\\projects\\M_DCB_C\\SP3_output_files";//
+const char* i_ipath = "D:\\projects\\M_DCB_C\\IONEX_files";// ionex
+const char* r_opath = "D:\\projects\\M_DCB_C\\RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
 int lim = 10;// el
 int order = 4;// order
 
@@ -31,7 +33,13 @@ int countFilesInDirectory(const char *folderPath);
 //void free_usage(SitesInfo sitesInfo, int len);
 void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs);
 void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType);
-
+void read_sp3(const char* s_ipath, const char* s_opath);
+void parse_sp3(char* sp3_file, double ***xyz);
+void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***sate_xyz);
+void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***xyz_etd);
+double* interp_lag(double* x, double* y, double* x0);
+int* GWeek_2_DOY(int G_Week, int Day_of_Week);
+void saveSp3ToCSV(double*** state_xyz, char* filename);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -42,7 +50,8 @@ int main() {
     // Step one: read rinex files
     SitesInfo sitesInfo;
     Obs obs;
-    read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
+    //read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
+    read_sp3(s_ipath, s_opath);
 
     printf("Hello, world!\n");
 
@@ -56,7 +65,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
     DIR *dir;
     FILE *file;
     struct dirent *entry;
-    int counter;
+    //int counter;
     int r_file_num;
 
     // 打开文件夹
@@ -364,7 +373,11 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
 
         char sav_filename[256]; // 假设文件名长度不超过256个字符
 
-        sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
+        //生成文件名，路径为当前路径下的RINEX_output_files文件夹
+        strcpy(sav_filename, r_opath);
+        strcat(sav_filename, "\\");
+        strcat(sav_filename, psitesInfo->name[i]);
+        strcat(sav_filename, ".csv");
 
         // Open file for writing
         FILE *outfile = fopen(sav_filename, "w");
@@ -385,6 +398,141 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
 
     }
     printf("Step one: completing !\n");
+}
+
+void read_sp3(const char* s_ipath, const char* s_opath){
+    DIR *dir;
+    FILE *file;
+    struct dirent *entry;
+    int sp3_file_num;
+
+    // 打开文件夹
+    dir = opendir(s_ipath);
+    if (dir == NULL) {
+        perror("无法打开文件夹");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Reading SP3 Files!\n");
+
+    // 计算sp3_files文件夹中文件数
+    sp3_file_num = countFilesInDirectory(s_ipath);
+    //如果文件数小于3，则报错"Need at least 3 SP3 files!"并退出程序
+    if (sp3_file_num < 3){
+        printf("Need at least 3 SP3 files!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < (sp3_file_num - 2); i++) {
+        int index = 0;//读取文件夹中的文件的索引
+        char pre_file_name[256];
+        char cur_file_name[256];
+        char next_file_name[256];
+        int G_Week = 0;
+        int Day_of_Week = 0;
+
+        //给pre_file_name,cur_file_name,next_file_name都赋值
+        while ((entry = readdir(dir)) != NULL) {  // 遍历文件夹中的每一个文件
+            if (index == i+2) {  //前两个文件分别是"."和"..",所以从第三个文件开始读
+                char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
+                strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+                strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+                strcat(filepath, entry->d_name);  // 将文件名拷贝到缓冲区
+                //把filepath的值赋给pre_file_name
+                strcpy(pre_file_name, filepath);
+            }
+            if (index == i+3){
+                char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
+                strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+                strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+                strcat(filepath, entry->d_name);  // 将文件名拷贝到缓冲区
+                strcpy(cur_file_name, filepath);
+
+                sscanf(entry->d_name + 3, "%4d", &G_Week);
+                sscanf(entry->d_name + 7, "%1d", &Day_of_Week);
+            }
+            if (index == i+4){
+                char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
+                strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+                strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+                strcat(filepath, entry->d_name);  // 将文件名拷贝到缓冲区
+                strcpy(next_file_name, filepath);
+            }
+                index++;  // 如果不是第 i 个文件，继续查找下一个文件
+        }
+        closedir(dir);  // 关闭文件夹
+
+        //读取pre_file_name sp3文件的x,y,z坐标
+        //定义一个一维double数组pre_xyz，长度为3，并赋初值为0
+        double ***pre_xyz; double ***cur_xyz; double ***next_xyz; double ***sate_xyz;
+        pre_xyz = (double ***)malloc(3 * sizeof(double **));
+        cur_xyz = (double ***)malloc(3 * sizeof(double **));
+        next_xyz = (double ***)malloc(3 * sizeof(double **));
+        sate_xyz = (double ***)malloc(3 * sizeof(double **));
+        for (int i = 0; i < 3; i++) {
+            pre_xyz[i] = (double **)malloc(96 * sizeof(double *));
+            for (int j = 0; j < 96; j++) {
+                pre_xyz[i][j] = (double *)malloc(32 * sizeof(double));
+                for (int k = 0; k < 32; k++) {
+                    pre_xyz[i][j][k] = 0.0; // 初始化为零
+                }
+            }
+        }
+        for (int i = 0; i < 3; i++) {
+            cur_xyz[i] = (double **)malloc(96 * sizeof(double *));
+            for (int j = 0; j < 96; j++) {
+                cur_xyz[i][j] = (double *)malloc(32 * sizeof(double));
+                for (int k = 0; k < 32; k++) {
+                    cur_xyz[i][j][k] = 0.0; // 初始化为零
+                }
+            }
+        }
+        for (int i = 0; i < 3; i++) {
+            next_xyz[i] = (double **)malloc(96 * sizeof(double *));
+            for (int j = 0; j < 96; j++) {
+                next_xyz[i][j] = (double *)malloc(32 * sizeof(double));
+                for (int k = 0; k < 32; k++) {
+                    next_xyz[i][j][k] = 0.0; // 初始化为零
+                }
+            }
+        }
+        for (int i = 0; i < 3; i++) {
+            sate_xyz[i] = (double **)malloc(2880 * sizeof(double *));
+            for (int j = 0; j < 2880; j++) {
+                sate_xyz[i][j] = (double *)malloc(32 * sizeof(double));
+                for (int k = 0; k < 32; k++) {
+                    sate_xyz[i][j][k] = 0.0; // 初始化为零
+                }
+            }
+        }
+
+        //pre_xyz[][][],第一个[]代表x,y,z坐标，第二个[]代表行（时间），第三个[]代表列（卫星编号）
+        parse_sp3(pre_file_name, pre_xyz);
+        parse_sp3(cur_file_name, cur_xyz);
+        parse_sp3(next_file_name, next_xyz);
+
+        interplotation(pre_xyz, cur_xyz, next_xyz, sate_xyz);
+
+        int* DOY = GWeek_2_DOY(G_Week, Day_of_Week);
+
+        char sav_filename[256]; // 假设文件名长度不超过256个字符
+        //生成文件名，路径为当前路径下的SP3_output_files文件夹
+        strcpy(sav_filename, s_opath);
+        strcat(sav_filename, "\\");
+        //添加G_Week和Day_of_Week到文件名中
+        char G_Week_str[5];
+        char Day_of_Week_str[2];
+        sprintf(G_Week_str, "%d", G_Week);
+        sprintf(Day_of_Week_str, "%d", Day_of_Week);
+        strcat(sav_filename, G_Week_str);
+        strcat(sav_filename, "_");
+        strcat(sav_filename, Day_of_Week_str);
+        strcat(sav_filename, "sp3");
+        strcat(sav_filename, ".csv");
+
+        saveSp3ToCSV(sate_xyz, sav_filename);
+    }
+
 }
 
 // 文件夹内文件数
@@ -414,19 +562,6 @@ int countFilesInDirectory(const char *folderPath) {
     return counter;
 }
 
-//void free_usage(SitesInfo sitesInfo, int len) {
-//    // 释放 sitesInfo 结构体内存
-//    for (int i = 0; i < len; i++) {
-//        free(sitesInfo.name[i]);
-//    }
-//    free(sitesInfo.name);
-//    free(sitesInfo.doy);
-//    for (int i = 0; i < len; i++) {
-//        free(sitesInfo.coor[i]);
-//    }
-//    free(sitesInfo.coor);
-//}
-
 // Function to write array to file with labels
 void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType) {
     // 写入列标签
@@ -444,4 +579,220 @@ void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType
         }
         fprintf(file, "\n");
     }
+}
+
+void parse_sp3(char* sp3_file, double ***xyz){
+    FILE *file;
+    char line[256];
+    file = fopen(sp3_file, "r");
+    if (file == NULL) {
+        perror("Can't Open File");
+    }
+
+    int ep = 0;
+
+    while (fgets(line, sizeof(line), file)) {
+        //如果line开头第一个字符是"*"，则执行下面的语句
+        if (line[0] == '*'){
+            //读取line的第15到16个字符，转换为double类型，赋给一个变量h
+            double h = 0; double m = 0;
+            if (sscanf(line + 14, "%2lf", &h) == 1){
+            }
+            if (sscanf(line + 17, "%2lf", &m) == 1){
+            }
+            //对m/15的结果进行四舍五入
+            ep = (int)h*4 + round(m/15) + 1;
+            continue;
+        }
+        //如果line长度大于1，并且line的第一个和第二个字符是"PG"，则执行下面的语句
+        if (strlen(line) > 1 && line[0] == 'P' && line[1] == 'G'){
+            int sv = 0;
+            if (sscanf(line+2, "%2d", &sv) == 1){
+            }
+            if (sscanf(line+4, "%14lf", &xyz[0][ep-1][sv-1]) == 1){
+            }
+            if (sscanf(line+18, "%14lf", &xyz[1][ep-1][sv-1]) == 1){
+            }
+            if (sscanf(line+18, "%14lf", &xyz[2][ep-1][sv-1]) == 1){
+            }
+            continue;
+        }
+    }
+    fclose(file);
+}
+
+void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***sate_xyz){
+    double ***cur_xyz_etd;
+    cur_xyz_etd = (double ***)malloc(3 * sizeof(double **));
+    for (int i = 0; i < 3; i++) {
+        cur_xyz_etd[i] = (double **)malloc(105 * sizeof(double *));
+        for (int j = 0; j < 105; j++) {
+            cur_xyz_etd[i][j] = (double *)malloc(32 * sizeof(double));
+            for (int k = 0; k < 32; k++) {
+                cur_xyz_etd[i][j][k] = 0.0; // 初始化为零
+            }
+        }
+    }
+
+    extend_matrix(0, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//x_extend
+    extend_matrix(1, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//y_extend
+    extend_matrix(2, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//z_extend
+
+    //创建一个整数数组m_t，起始值为-120，结束值为3000，数组长度为105
+    int m_t[105];
+    for (int i = 0; i < 105; i++){
+        m_t[i] = -120 + 30*i;
+    }
+
+    for (int i = 0; i < 32; i++){
+        for (int j = 0; j < 96; j++){
+            double tt[10];
+            //tt的值等于m_t的第j个元素到第j+9个元素
+            for (int k = 0; k < 10; k++){
+                tt[k] = m_t[j+k];
+            }
+            //创建一个int类型的数组x_temp，cur_xyz_etd[0]的第j行到第j+9行，第i列的值赋给x_temp
+            double x_temp[10];
+            for (int k = 0; k < 10; k++){
+                x_temp[k] = cur_xyz_etd[0][j+k][i];
+            }
+            //创建一个int类型的数组y_temp，cur_xyz_etd[1]的第j行到第j+9行，第i列的值赋给y_temp
+            double y_temp[10];
+            for (int k = 0; k < 10; k++){
+                y_temp[k] = cur_xyz_etd[1][j+k][i];
+            }
+            //创建一个int类型的数组z_temp，cur_xyz_etd[2]的第j行到第j+9行，第i列的值赋给z_temp
+            double z_temp[10];
+            for (int k = 0; k < 10; k++){
+                z_temp[k] = cur_xyz_etd[2][j+k][i];
+            }
+            //创建一个t0数组，起始值为m_t(j+4),终点值为m_t(j+5)-1，长度为30
+            double t0[30];
+            for (int k = 0; k < 30; k++){
+                t0[k] = m_t[j+4] + k;
+            }
+
+            double* x0 = interp_lag(tt, x_temp, t0);
+            double* y0 = interp_lag(tt, y_temp, t0);
+            double* z0 = interp_lag(tt, z_temp, t0);
+
+            for (int k = 0; k < 30; k++){
+                sate_xyz[0][30*(j+1)-30+k][i] = x0[k];
+                sate_xyz[1][30*(j+1)-30+k][i] = y0[k];
+                sate_xyz[2][30*(j+1)-30+k][i] = z0[k];
+            }
+        }
+    }
+
+    printf("Hello");
+
+}
+
+void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***xyz_etd){
+    //从矩阵pre_xyz[0]中选取第93到第96行的所有列，形成一个子矩阵。将子矩阵与矩阵cur_xyz[0]进行垂直拼接，即将子矩阵放在cur_xyz[0]的上方。将矩阵next_xyz[0]中的第1到第5行的所有列与前一步得到的结果进行垂直拼接，即将next_xyz[0]的前5行放在前一步得到的结果的下方。
+    // 先填充pre_xyz的部分
+    for (int j = 0; j < 4; j++){
+        for (int k = 0; k < 32; k++) {
+            xyz_etd[dimension][j][k] = pre_xyz[dimension][j+92][k];
+        }
+    }
+
+    // 填充cur_xyz的部分
+    for (int j = 4; j < 100; j++) {
+        for (int k = 0; k < 32; k++) {
+            xyz_etd[dimension][j][k] = cur_xyz[dimension][j-4][k];
+        }
+    }
+
+    // 填充next_xyz的部分
+    for (int j = 100; j < 105; j++) {
+        for (int k = 0; k < 32; k++) {
+            xyz_etd[dimension][j][k] = next_xyz[dimension][j-100][k];
+        }
+    }
+}
+
+// 声明Lagrange插值函数
+double* interp_lag(double* x, double* y, double* x0) {
+    int n = 10; // 假设x中有10个点
+    int n0 = 30;
+    double* y0 = (double*)malloc(n0 * sizeof(double)); // 动态分配返回数组
+    if (y0 == NULL) { // 检查内存分配是否成功
+        printf("Memory allocation failed.\n");
+        return NULL;
+    }
+
+    for (int k = 0; k < n0; ++k) { // 遍历x0中的每个点
+        y0[k] = 0; // 初始化y0的当前元素
+        for (int i = 0; i < n; ++i) { // 遍历x中的每个点
+            double t = 1;
+            for (int j = 0; j < n; ++j) { // 计算插值基函数
+                if (j != i) {
+                    t *= (x0[k] - x[j]) / (x[i] - x[j]);
+                }
+            }
+            y0[k] += t * y[i]; // 累加计算插值结果
+        }
+    }
+
+    return y0; // 返回计算结果
+}
+
+int* GWeek_2_DOY(int G_Week, int Day_of_Week){
+    int *DOY = (int *) malloc(2 * sizeof(int));
+    int doy = 0;
+    int year = 1980;
+    int n=0;
+
+    int a[] = {360,725,1090,1455,1821,2186,2551,2916,3282,3647,4012,4377,4743,5108,5473,5838,6204,6569,6934,7299,7665,8030,8395,8760,9126,9491,9856,10221,10587,10952,11317,11682,12048,12413,12778,13143,13509,13874,14239,14604,14970};
+    n = G_Week*7 + Day_of_Week;
+
+    for (int i = 0; i < 41; i++){
+        if (!(n > a[0])){
+            doy = n + 6;
+            break;
+        }
+        if (!(n > a[i])){
+            year = year + i;
+            doy = n - a[i-1];
+            break;
+        }
+    }
+
+    DOY[0] = year;
+    DOY[1] = doy;
+    return DOY;
+}
+
+void saveSp3ToCSV(double*** sate_xyz, char* filename) {
+    FILE* file = fopen(filename, "w"); // 打开文件用于写入
+    if (file == NULL) {
+        printf("无法打开文件 %s\n", filename);
+        return;
+    }
+
+    // 为卫星号SVN创建表头
+    fprintf(file, "Epoch/SVN,");
+    for (int svn = 1; svn <= 32; svn++) {
+        fprintf(file, "%d", svn);
+        if (svn < 32) fprintf(file, ",");
+        else fprintf(file, "\n");
+    }
+
+    // 分别按照x、y、z的顺序写入数据
+    for (int dim = 0; dim < 3; dim++) { // 0: x, 1: y, 2: z
+        for (int epoch = 0; epoch < 2880; epoch++) {
+            fprintf(file, "Epoch %d,", epoch + 1);
+            for (int svn = 0; svn < 32; svn++) {
+                fprintf(file, "%lf", sate_xyz[dim][epoch][svn]);
+                if (svn < 31) fprintf(file, ",");
+                else fprintf(file, "\n");
+            }
+        }
+        // 在不同维度数据间添加空行，增加可读性，可根据个人喜好决定是否保留
+        fprintf(file, "\n");
+    }
+
+    fclose(file); // 关闭文件
+    printf("数据已成功保存到 %s\n", filename);
 }
