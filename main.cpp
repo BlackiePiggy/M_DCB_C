@@ -9,6 +9,7 @@ typedef struct {
     char** name;
     int* doy;
     double** coor;
+    double* RDCB_REF;
 } SitesInfo;
 
 typedef struct {
@@ -19,14 +20,25 @@ typedef struct {
     double **L2;
 } Obs;
 
+typedef struct {
+    double** value;
+    int* doy;
+} SDCB_REF;
+
 // -----------------------------Setting--------------------------------------
 const char* r_ipath = "D:\\projects\\M_DCB_C\\RINEX_files";// rinex
+const char* r_opath = "D:\\projects\\M_DCB_C\\RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
 const char* s_ipath = "D:\\projects\\M_DCB_C\\SP3_files";// sp3
 const char* s_opath = "D:\\projects\\M_DCB_C\\SP3_output_files";//
 const char* i_ipath = "D:\\projects\\M_DCB_C\\IONEX_files";// ionex
-const char* r_opath = "D:\\projects\\M_DCB_C\\RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
+const char* i_opath = "D:\\projects\\M_DCB_C\\IONEX_output_files";// ionex
 int lim = 10;// el
 int order = 4;// order
+int r_file_num;
+
+SitesInfo sitesInfo;
+Obs obs;
+SDCB_REF sDCB_REF;
 
 // -----------------------------Function--------------------------------------
 int countFilesInDirectory(const char *folderPath);
@@ -40,6 +52,9 @@ void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double *
 double* interp_lag(double* x, double* y, double* x0);
 int* GWeek_2_DOY(int G_Week, int Day_of_Week);
 void saveSp3ToCSV(double*** state_xyz, char* filename);
+void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo, SDCB_REF sdcb_ref);
+int find_ionex_index(int doy);
+int find_rinex_indexs(int* index, int doy);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -48,11 +63,13 @@ int main() {
     printf("MDCB(multi-stations) starts running!\n");
 
     // Step one: read rinex files
-    SitesInfo sitesInfo;
-    Obs obs;
-    //read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
-    read_sp3(s_ipath, s_opath);
+    read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
 
+    // Step two--------------------Read SP3 files--------------------------------
+    //read_sp3(s_ipath, s_opath);
+
+    // Step three------------------Read ionex files------------------------------
+    read_ionex(i_ipath, i_opath, &sitesInfo, sDCB_REF);
 
     // 释放 sitesInfo 结构体内存
     //free_usage(sitesInfo, len);
@@ -65,7 +82,6 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
     FILE *file;
     struct dirent *entry;
     //int counter;
-    int r_file_num;
 
     // 打开文件夹
     dir = opendir(r_ipath);
@@ -85,10 +101,23 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
         psitesInfo->name[i] = (char *) malloc(256 * sizeof(char)); // 假设文件名最大长度为256
     }
     psitesInfo->doy = (int *) malloc(r_file_num * sizeof(int));
+    for (int i = 0; i < r_file_num; i++){
+        psitesInfo->doy[i] = 0;
+    }
     psitesInfo->coor = (double **) malloc(r_file_num * sizeof(double *));
     for (int i = 0; i < r_file_num; i++) {
-        psitesInfo->coor[i] = (double *) malloc(256 * sizeof(double)); // 假设文件名最大长度为256
+        psitesInfo->coor[i] = (double *) malloc(3 * sizeof(double)); // 假设文件名最大长度为256
     }
+    for (int i = 0; i < r_file_num; i++){
+        for (int j = 0; j < 3; j++){
+            psitesInfo->coor[i][j] = 0;
+        }
+    }
+    psitesInfo->RDCB_REF = (double *) malloc(r_file_num * sizeof(double));
+    for (int i = 0; i < r_file_num; i++){
+        psitesInfo->RDCB_REF[i] = 0;
+    }
+
     //为obs结构体内的数组分配内存，每个变量均需要一个(2880,32)尺寸的二维double数组
     // 分配内存空间给 P1
     pobs->P1 = (double **)malloc(2880 * sizeof(double *));
@@ -533,6 +562,71 @@ void read_sp3(const char* s_ipath, const char* s_opath){
     }
 }
 
+void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo, SDCB_REF sdcb_ref){
+    int n = r_file_num;
+    int new_size = 0;
+    int* doys; //去重的DOY存放在doys数组中，大小为new_size
+    //给doys申请n个int类型的内存，并赋初值为0
+    doys = (int *) malloc(n * sizeof(int));
+    for (int i = 0; i < n; i++){
+        doys[i] = 0;
+    }
+    //遍历r_file的doy
+    doys[0] = psitesInfo->doy[0];
+    new_size++;
+    for (int i = 1; i < n; i++){
+        //查看doys数组中是否有与psitesInfo->doy[i]相同的元素，若有，则不做任何行为，若无，则将psitesInfo->doy[i]赋值给doys[new_size]，并且new_size加1
+        int flag = 0;
+        for (int j = 0; j < new_size; j++){
+            if (doys[j] == psitesInfo->doy[i]){
+                flag = 1;   //说明在这个小循环中找到了相同的元素
+                break;
+            }
+        }
+        if (flag == 0){
+            doys[new_size] = psitesInfo->doy[i];
+            new_size++;
+        }
+    }
+
+    //为sdcb_ref结构体内的数组分配内存,value需要((new_size+1)*32)的尺寸
+    sdcb_ref.value = (double **)malloc((new_size+1) * sizeof(double *));
+    for (int i = 0; i < new_size+1; i++) {
+        sdcb_ref.value[i] = (double *)malloc(32 * sizeof(double));
+        for (int j = 0; j < 32; j++) {
+            sdcb_ref.value[i][j] = 0.0; // 初始化为零
+        }
+    }
+    //为sdcb_ref结构体内的数组分配内存,doy需要(new_size+1)的尺寸,并赋初值为0
+    sdcb_ref.doy = (int *)malloc((new_size+1) * sizeof(int));
+    for (int i = 0; i < new_size+1; i++){
+        sdcb_ref.doy[i] = 0;
+    }
+
+    //开始读文件
+    for (int i= 0; i < new_size+1; i++){
+        int index = 0; int *index2; int doy_num;
+        char** sites_name;
+
+        index = find_ionex_index(doys[i]);
+        doy_num = find_rinex_indexs(index2, doys[i]); //在rinex文件列表中找到所有和doy[i]相等的索引号
+
+        //给sites_name申请doy_num个char*类型的内存,每个char不超过4个字符
+        sites_name = (char **) malloc(doy_num * sizeof(char *));
+        for (int j = 0; j < doy_num; j++) {
+            sites_name[j] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
+        }
+
+        //取出sites_name的值
+        for (int j = 0; j < doy_num; j++){
+            strcpy(sites_name[j], psitesInfo->name[index2[j]]);
+        }
+
+        printf("");
+
+    }
+}
+
 // 文件夹内文件数
 int countFilesInDirectory(const char *folderPath) {
     DIR *dir;
@@ -791,4 +885,55 @@ void saveSp3ToCSV(double*** sate_xyz, char* filename) {
 
     fclose(file); // 关闭文件
     printf("SP3 data successfully saved to %s\n", filename);
+}
+
+int find_ionex_index(int doy){
+    int index = 0;
+
+    //读取i_ipath文件夹中的文件
+    DIR *dir;
+    FILE *file;
+    struct dirent *entry;
+
+    // 打开文件夹
+    dir = opendir(i_ipath);
+    if (dir == NULL) {
+        perror("无法打开文件夹");
+        exit(EXIT_FAILURE);
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        int number1 = 0; int number2 = 0; int doy_temp = 0;
+        //如果entry->d_name的第一个字符是"i"，则跳入下一个循环
+        if (entry->d_name[0] == '.' || entry->d_name == ".."){
+            continue;
+        }
+        //第5到第7位的int类型数字1
+        sscanf(entry->d_name + 4, "%3d", &number1);
+        //第10到第11位的int类型数字2
+        sscanf(entry->d_name + 9, "%2d", &number2);
+        doy_temp = number1 + number2*1000;
+        if (doy_temp == doy){
+            return index;
+            break;
+        }
+        index++;
+    }
+
+    return -1;
+}
+
+int find_rinex_indexs(int* index, int doy){
+    int counter = 0;
+    index = (int *) malloc(r_file_num * sizeof(int));
+
+    int index_of_index = 0;
+    for(int i = 0; i < r_file_num; i++){
+        if (sitesInfo.doy[i] == doy){
+            index[index_of_index] = i;
+            counter++;
+        }
+    }
+
+    return counter;
 }
