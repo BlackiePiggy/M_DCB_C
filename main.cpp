@@ -53,7 +53,6 @@ int main() {
     //read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
     read_sp3(s_ipath, s_opath);
 
-    printf("Hello, world!\n");
 
     // 释放 sitesInfo 结构体内存
     //free_usage(sitesInfo, len);
@@ -406,13 +405,6 @@ void read_sp3(const char* s_ipath, const char* s_opath){
     struct dirent *entry;
     int sp3_file_num;
 
-    // 打开文件夹
-    dir = opendir(s_ipath);
-    if (dir == NULL) {
-        perror("无法打开文件夹");
-        exit(EXIT_FAILURE);
-    }
-
     printf("Reading SP3 Files!\n");
 
     // 计算sp3_files文件夹中文件数
@@ -430,6 +422,13 @@ void read_sp3(const char* s_ipath, const char* s_opath){
         char next_file_name[256];
         int G_Week = 0;
         int Day_of_Week = 0;
+
+        // 打开文件夹
+        dir = opendir(s_ipath);
+        if (dir == NULL) {
+            perror("无法打开文件夹");
+            exit(EXIT_FAILURE);
+        }
 
         //给pre_file_name,cur_file_name,next_file_name都赋值
         while ((entry = readdir(dir)) != NULL) {  // 遍历文件夹中的每一个文件
@@ -522,8 +521,8 @@ void read_sp3(const char* s_ipath, const char* s_opath){
         //添加G_Week和Day_of_Week到文件名中
         char G_Week_str[5];
         char Day_of_Week_str[2];
-        sprintf(G_Week_str, "%d", G_Week);
-        sprintf(Day_of_Week_str, "%d", Day_of_Week);
+        sprintf(G_Week_str, "%d", DOY[0]);
+        sprintf(Day_of_Week_str, "%d", DOY[1]);
         strcat(sav_filename, G_Week_str);
         strcat(sav_filename, "_");
         strcat(sav_filename, Day_of_Week_str);
@@ -532,7 +531,6 @@ void read_sp3(const char* s_ipath, const char* s_opath){
 
         saveSp3ToCSV(sate_xyz, sav_filename);
     }
-
 }
 
 // 文件夹内文件数
@@ -684,8 +682,6 @@ void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, do
         }
     }
 
-    printf("Hello");
-
 }
 
 void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***xyz_etd){
@@ -794,5 +790,5 @@ void saveSp3ToCSV(double*** sate_xyz, char* filename) {
     }
 
     fclose(file); // 关闭文件
-    printf("数据已成功保存到 %s\n", filename);
+    printf("SP3 data successfully saved to %s\n", filename);
 }
