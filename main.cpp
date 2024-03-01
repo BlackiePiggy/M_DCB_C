@@ -35,6 +35,7 @@ const char* i_opath = "D:\\projects\\M_DCB_C\\IONEX_output_files";// ionex
 int lim = 10;// el
 int order = 4;// order
 int r_file_num;
+double* DCB_rec;
 
 SitesInfo sitesInfo;
 Obs obs;
@@ -55,6 +56,8 @@ void saveSp3ToCSV(double*** state_xyz, char* filename);
 void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo, SDCB_REF sdcb_ref);
 int find_ionex_index(int doy);
 int find_rinex_indexs(int* index, int doy);
+void get_filenames(const char* folderPath, char** filenames, int file_num);
+void r_ionex(const char* ionex_file, int i);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -603,10 +606,30 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
         sdcb_ref.doy[i] = 0;
     }
 
+    char** ionex_filenames; int ionex_file_num = 0;
+
+    ionex_file_num = countFilesInDirectory(i_ipath);
+
+    //给ionex_filenames申请ionex_file_num个char*类型的内存,每个char不超过32个字符
+    ionex_filenames = (char **) malloc((ionex_file_num) * sizeof(char *));
+    for (int i = 0; i < ionex_file_num; i++) {
+        ionex_filenames[i] = (char *) malloc(32 * sizeof(char)); // 假设每个观测量最大长度为32
+    }
+
+    get_filenames(i_ipath, ionex_filenames,ionex_file_num);
+
+    //为DCB_rec分配内存, 大小为ionex_file_num
+    DCB_rec = (double *)malloc(ionex_file_num * sizeof(double));
+
     //开始读文件
     for (int i= 0; i < new_size+1; i++){
         int index = 0; int *index2; int doy_num;
         char** sites_name;
+
+        index2 = (int *) malloc(r_file_num * sizeof(int));
+        for (int i = 0; i < r_file_num; i++){
+            index2[i] = 0;
+        }
 
         index = find_ionex_index(doys[i]);
         doy_num = find_rinex_indexs(index2, doys[i]); //在rinex文件列表中找到所有和doy[i]相等的索引号
@@ -619,10 +642,17 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
 
         //取出sites_name的值
         for (int j = 0; j < doy_num; j++){
-            strcpy(sites_name[j], psitesInfo->name[index2[j]]);
+            strncpy(sites_name[j], &psitesInfo->name[index2[j]][0],4);
+            sites_name[j][4] = '\0';
         }
 
-        printf("");
+        //开始读ionex文件
+        char ionex_file_path[256];
+        strcpy(ionex_file_path, i_ipath);
+        strcat(ionex_file_path, "\\");
+        strcat(ionex_file_path, ionex_filenames[index]);
+
+        r_ionex(ionex_file_path, i);
 
     }
 }
@@ -631,7 +661,7 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
 int countFilesInDirectory(const char *folderPath) {
     DIR *dir;
     struct dirent *entry;
-    int counter;
+    int counter = 0;
 
     // 打开文件夹
     dir = opendir(folderPath);
@@ -925,15 +955,79 @@ int find_ionex_index(int doy){
 
 int find_rinex_indexs(int* index, int doy){
     int counter = 0;
-    index = (int *) malloc(r_file_num * sizeof(int));
 
-    int index_of_index = 0;
     for(int i = 0; i < r_file_num; i++){
         if (sitesInfo.doy[i] == doy){
-            index[index_of_index] = i;
+            index[counter] = i;
             counter++;
         }
     }
 
     return counter;
+}
+
+void get_filenames(const char* folderPath, char** filenames, int file_num) {
+    DIR *dir;
+    struct dirent *entry;
+    int counter = 0;
+
+    // 打开文件夹
+    dir = opendir(folderPath);
+    if (dir == NULL) {
+        perror("无法打开文件夹");
+        exit(EXIT_FAILURE);
+    }
+
+    // 读取文件夹中的文件
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.' || entry->d_name == ".."){
+            continue;
+        }
+        strcpy(filenames[counter], entry->d_name);
+        counter++;
+    }
+
+    // 关闭文件夹
+    closedir(dir);
+}
+
+void r_ionex(const char* ionex_file, int i) {
+    int flag = 0;
+
+    // 打开文件
+    FILE *file;
+    file = fopen(ionex_file, "r");
+    if (file == NULL) {
+        perror("Can't Open File");
+    }
+
+    // 读取文件
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        if (flag == 1){
+            break;
+        }
+
+        //如果line长度大于76并且第61到77个字符是"START OF AUX DATA"，则执行下面的语句
+        if (strlen(line) > 76 && strncmp(line + 60, "START OF AUX DATA", 17) == 0){
+            flag = 1;
+            while (fgets(line, sizeof(line), file)) {
+                //如果line长度大于74并且第61到75个字符是"END OF AUX DATA"，则跳出循环
+                if (strlen(line) > 74 && strncmp(line + 60, "END OF AUX DATA", 15) == 0){
+                    break;
+                }
+                //--satellites' DCB
+                if (strlen(line) > 75 && (strncmp(line+3,"G",1)||strncmp(line+3," ",1)) && strncmp(line + 60, "PRN / BIAS / RMS", 16)){
+                    sscanf(line + 4, "%2d", &prn);
+                    sscanf(line + 9, "%7lf", &sDCB_REF.value[i]);
+                    continue;
+                }
+                //--receivers' DCB
+                if (strlen(line) > 10 && (strncmp(line+3,"G",1)||strncmp(line+3," ",1)) && strncmp(line + 60, "STATION / BIAS / RMS", 20)){
+                    
+                }
+            }
+
+        }
+    }
 }
