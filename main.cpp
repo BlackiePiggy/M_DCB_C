@@ -57,7 +57,7 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
 int find_ionex_index(int doy);
 int find_rinex_indexs(int* index, int doy);
 void get_filenames(const char* folderPath, char** filenames, int file_num);
-void r_ionex(const char* ionex_file, int i);
+void r_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB_REF sDCB_REF, double* DCB_rec);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -592,17 +592,17 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
         }
     }
 
-    //为sdcb_ref结构体内的数组分配内存,value需要((new_size+1)*32)的尺寸
-    sdcb_ref.value = (double **)malloc((new_size+1) * sizeof(double *));
-    for (int i = 0; i < new_size+1; i++) {
+    //为sdcb_ref结构体内的数组分配内存,value需要((new_size)*32)的尺寸
+    sdcb_ref.value = (double **)malloc((new_size) * sizeof(double *));
+    for (int i = 0; i < new_size; i++) {
         sdcb_ref.value[i] = (double *)malloc(32 * sizeof(double));
         for (int j = 0; j < 32; j++) {
             sdcb_ref.value[i][j] = 0.0; // 初始化为零
         }
     }
     //为sdcb_ref结构体内的数组分配内存,doy需要(new_size+1)的尺寸,并赋初值为0
-    sdcb_ref.doy = (int *)malloc((new_size+1) * sizeof(int));
-    for (int i = 0; i < new_size+1; i++){
+    sdcb_ref.doy = (int *)malloc((new_size) * sizeof(int));
+    for (int i = 0; i < new_size; i++){
         sdcb_ref.doy[i] = 0;
     }
 
@@ -622,7 +622,7 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
     DCB_rec = (double *)malloc(ionex_file_num * sizeof(double));
 
     //开始读文件
-    for (int i= 0; i < new_size+1; i++){
+    for (int i= 0; i < new_size; i++){
         int index = 0; int *index2; int doy_num;
         char** sites_name;
 
@@ -652,7 +652,9 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
         strcat(ionex_file_path, "\\");
         strcat(ionex_file_path, ionex_filenames[index]);
 
-        r_ionex(ionex_file_path, i);
+        r_ionex(ionex_file_path, i, sites_name, doy_num, sdcb_ref, DCB_rec);
+
+        printf("Hello");
 
     }
 }
@@ -950,6 +952,7 @@ int find_ionex_index(int doy){
         index++;
     }
 
+    perror("Can't find the ionex file");
     return -1;
 }
 
@@ -991,8 +994,9 @@ void get_filenames(const char* folderPath, char** filenames, int file_num) {
     closedir(dir);
 }
 
-void r_ionex(const char* ionex_file, int i) {
+void r_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB_REF sDCB_REF, double* DCB_rec) {
     int flag = 0;
+    int prn = 0;
 
     // 打开文件
     FILE *file;
@@ -1017,17 +1021,25 @@ void r_ionex(const char* ionex_file, int i) {
                     break;
                 }
                 //--satellites' DCB
-                if (strlen(line) > 75 && (strncmp(line+3,"G",1)||strncmp(line+3," ",1)) && strncmp(line + 60, "PRN / BIAS / RMS", 16)){
+                //如果line长度大于75，并且第4个字符是"G"或空格，并且第61到75个字符是"PRN / BIAS / RMS"，则执行下面的语句
+                if (strlen(line) > 75 && (line[3] == 'G' || line[3] == ' ') && !(strncmp(line + 60, "PRN / BIAS / RMS", 15)) == 1){
                     sscanf(line + 4, "%2d", &prn);
-                    sscanf(line + 9, "%7lf", &sDCB_REF.value[i]);
+                    sscanf(line + 9, "%7lf", &sDCB_REF.value[i][prn-1]);
                     continue;
                 }
                 //--receivers' DCB
-                if (strlen(line) > 10 && (strncmp(line+3,"G",1)||strncmp(line+3," ",1)) && strncmp(line + 60, "STATION / BIAS / RMS", 20)){
-                    
+                if (strlen(line) > 10 && (line[3] == 'G' || line[3] == ' ') && !(strncmp(line + 60, "STATION / BIAS / RMS", 20)) == 1){
+                    //比较line的第7到第10个字符是否在sites_name中，如果在，则执行下面的语句
+                    for (int j = 0; j < doy_num; j++){
+                        if (strncmp(line + 4, sites_name[j], 4) == 0){
+                            sscanf(line + 29, "%7lf", &DCB_rec[j]);
+                            break;
+                        }
+                    }
                 }
             }
-
         }
     }
+    //关闭文件
+    fclose(file);
 }
