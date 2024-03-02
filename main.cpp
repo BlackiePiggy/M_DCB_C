@@ -77,6 +77,7 @@ void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, 
 void convertTo2D(int *arr, int size, int** result);
 int** Get_arc(double** L6, int prn);
 int** removeRows(int** arc, int n, int* arc_d, int d_size, int* new_size);
+void deleteRowAndReplace(int ***arc, int *n, int row);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -1525,7 +1526,56 @@ double** pre_pro(Obs* obs_temp){
         int** arc_final = removeRows(arc, arc_n, arc_d, d_size, &new_size);//删除对应行后的arc数组，之后都处理arc_final数组
 
         //----mw detect cycle slip------------------
+        int arc_final_n = sizeof(arc_final) / sizeof(arc_final[0]);
+        int arc_final_aaa = sizeof(arc_final[0]) / sizeof(arc_final[0][0]);
+        int j = 0;
 
+        while (j<arc_final_n){
+            //----first epoch check----------
+            int e = arc_final[j][0];
+            while (1){
+                if (e+1 == arc_final[j][1] || e == arc_final[j][1]){
+                    break;
+                }
+                double fir = Nw[e][prn]; double sec = Nw[e+1][prn]; double thi = Nw[e+2][prn];
+                double firl = Li[e][prn]; double secl = Li[e+1][prn]; double thil = Li[e+2][prn];
+                double sub = fabs(fir - sec); double sub2 = fabs(sec - thi);
+                double subl = fabs(firl - secl); double subl2 = fabs(secl - thil);
+
+                if (sub>1 || sub2>1 || subl>1 || subl2>1){
+                    L6[e][prn] = 0; Li[e][prn] = 0; Nw[e][prn] = 0;
+                    obs_temp->L1[e][prn] = 0; obs_temp->L2[e][prn] = 0; obs_temp->P1[e][prn] = 0; obs_temp->P2[e][prn] = 0;
+                    e++;
+                    arc_final[j][0] = e;
+                }else{
+                    arc_final[j][0] = e;
+                    break;
+                }
+            }
+
+            //----detect------------------
+            if (arc_final[j][1] - arc_final[j][0]<10){
+                for (int k = arc_final[j][0]; k < arc_final[j][1]; k++){
+                    obs_temp->P1[k][prn] = 0; obs_temp->P2[k][prn] = 0; obs_temp->L1[k][prn] = 0; obs_temp->L2[k][prn] = 0;
+                    L6[k][prn] = 0; Li[k][prn] = 0; Nw[k][prn] = 0;
+                }
+                //删除掉arc_final[j]这一行
+                deleteRowAndReplace(&arc_final, &arc_final_n, j);
+                arc_final_n--;
+                continue;
+            }
+
+            double* ave_N = (double *) malloc((arc_final[j][1] - arc_final[j][0] + 1) * sizeof(double));
+            double* sigma = (double *) malloc((arc_final[j][1] - arc_final[j][0] + 1) * sizeof(double));
+            double* sigma2 = (double *) malloc((arc_final[j][1] - arc_final[j][0] + 1) * sizeof(double));
+            ave_N[0] = Nw[arc_final[j][0]][prn];
+            sigma[0] = 0; sigma2[0] = 0;
+            int count = 2;
+
+            //----------------------check epoch k+1
+
+
+        }
 
         //--------smoothing-------------------------
 
@@ -1642,4 +1692,31 @@ int** removeRows(int** arc, int n, int* arc_d, int d_size, int* new_size) {
     }
 
     return arc_final;
+}
+
+void deleteRowAndReplace(int ***arc, int *n, int row) {
+    int newN = *n - 1; // 新数组的行数
+    int **tempArc = (int **)malloc(newN * sizeof(int *));
+    for (int i = 0; i < newN; i++) {
+        tempArc[i] = (int *)malloc(2 * sizeof(int));
+    }
+
+    // 复制除了要删除的行之外的所有行到临时数组
+    for (int i = 0, j = 0; i < *n; i++) {
+        if (i != row) {
+            tempArc[j][0] = (*arc)[i][0];
+            tempArc[j][1] = (*arc)[i][1];
+            j++;
+        }
+    }
+
+    // 释放原数组的内存
+    for (int i = 0; i < *n; i++) {
+        free((*arc)[i]);
+    }
+    free(*arc);
+
+    // 将原数组指针指向新数组
+    *arc = tempArc;
+    *n = newN; // 更新外部n的值
 }
