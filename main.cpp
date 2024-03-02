@@ -39,6 +39,7 @@ int order = 4;// order
 int r_file_num;
 double* DCB_rec;
 
+//全局变量
 SitesInfo sitesInfo;
 Obs obs;
 SDCB_REF sDCB_REF;
@@ -64,6 +65,8 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag);
 void writeToFile(char* filename, Obs* obs, int num_sites);
 void writeObsToFile(const char* filename, Obs* obs, int p1Rows, int p2Rows, int l1Rows, int l2Rows, int cols);
 void readObsFromFile(const char* filename, Obs* obs);
+void save_sp3_To_Bin_File(double ***sate_xyz, int dim1, int dim2, int dim3, const char *filename);
+void load_Sp3_From_Bin_File(double ****sate_xyz, int dim1, int dim2, int dim3, const char *filename);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -75,13 +78,13 @@ int main() {
     read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
 
     // Step two--------------------Read SP3 files--------------------------------
-    //read_sp3(s_ipath, s_opath);
+    read_sp3(s_ipath, s_opath);
 
     // Step three------------------Read ionex files------------------------------
     read_ionex(i_ipath, i_opath, &sitesInfo, sDCB_REF);
 
     // Step four-------------------Ionosphere Observations-----------------------
-    get_smoothed_P4(sitesInfo, (lim*pi/180), 0);
+    //get_smoothed_P4(sitesInfo, (lim*pi/180), 0);
 
 
     return 0;
@@ -575,9 +578,10 @@ void read_sp3(const char* s_ipath, const char* s_opath){
         strcat(sav_filename, "_");
         strcat(sav_filename, Day_of_Week_str);
         strcat(sav_filename, "sp3");
-        strcat(sav_filename, ".csv");
+        strcat(sav_filename, ".dat");
 
-        saveSp3ToCSV(sate_xyz, sav_filename);
+        //saveSp3ToCSV(sate_xyz, sav_filename); //以csv格式存储sp3文件
+        save_sp3_To_Bin_File(sate_xyz, 3, 2880, 32, sav_filename);  //以二进制格式存储sp3文件
     }
 }
 
@@ -757,7 +761,7 @@ void parse_sp3(char* sp3_file, double ***xyz){
             }
             if (sscanf(line+18, "%14lf", &xyz[1][ep-1][sv-1]) == 1){
             }
-            if (sscanf(line+18, "%14lf", &xyz[2][ep-1][sv-1]) == 1){
+            if (sscanf(line+32, "%14lf", &xyz[2][ep-1][sv-1]) == 1){
             }
             continue;
         }
@@ -1206,6 +1210,41 @@ void readObsFromFile(const char* filename, Obs* obs) {
     for (int i = 0; i < l2Rows; i++) {
         obs->L2[i] = (double*)malloc(cols * sizeof(double));
         fread(obs->L2[i], sizeof(double), cols, file);
+    }
+
+    fclose(file);
+}
+
+void save_sp3_To_Bin_File(double ***sate_xyz, int dim1, int dim2, int dim3, const char *filename) {
+    FILE *file = fopen(filename, "wb");
+    if (file == NULL) {
+        perror("Failed to open file");
+        exit(1);
+    }
+
+    for (int i = 0; i < dim1; ++i) {
+        for (int j = 0; j < dim2; ++j) {
+            fwrite(sate_xyz[i][j], sizeof(double), dim3, file);
+        }
+    }
+
+    fclose(file);
+}
+
+void load_Sp3_From_Bin_File(double ****sate_xyz, int dim1, int dim2, int dim3, const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        perror("Failed to open file");
+        exit(1);
+    }
+
+    *sate_xyz = (double ***)malloc(dim1 * sizeof(double **));
+    for (int i = 0; i < dim1; ++i) {
+        (*sate_xyz)[i] = (double **)malloc(dim2 * sizeof(double *));
+        for (int j = 0; j < dim2; ++j) {
+            (*sate_xyz)[i][j] = (double *)malloc(dim3 * sizeof(double));
+            fread((*sate_xyz)[i][j], sizeof(double), dim3, file);
+        }
     }
 
     fclose(file);
