@@ -4,6 +4,8 @@
 #include <string.h>
 #include <math.h>
 
+#define pi 3.14159265358979323846
+
 // 假设 SitesInfo 结构体
 typedef struct {
     char** name;
@@ -57,7 +59,11 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
 int find_ionex_index(int doy);
 int find_rinex_indexs(int* index, int doy);
 void get_filenames(const char* folderPath, char** filenames, int file_num);
-void r_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB_REF sDCB_REF, double* DCB_rec);
+void read_single_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB_REF sDCB_REF, double* DCB_rec);
+void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag);
+void writeToFile(char* filename, Obs* obs, int num_sites);
+void writeObsToFile(const char* filename, Obs* obs, int p1Rows, int p2Rows, int l1Rows, int l2Rows, int cols);
+void readObsFromFile(const char* filename, Obs* obs);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -74,8 +80,9 @@ int main() {
     // Step three------------------Read ionex files------------------------------
     read_ionex(i_ipath, i_opath, &sitesInfo, sDCB_REF);
 
-    // 释放 sitesInfo 结构体内存
-    //free_usage(sitesInfo, len);
+    // Step four-------------------Ionosphere Observations-----------------------
+    get_smoothed_P4(sitesInfo, (lim*pi/180), 0);
+
 
     return 0;
 }
@@ -403,32 +410,41 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
         fclose(file);
 
         char sav_filename[256]; // 假设文件名长度不超过256个字符
+        char sav_dat_filename[256]; // 假设文件名长度不超过256个字符
 
         //生成文件名，路径为当前路径下的RINEX_output_files文件夹
         strcpy(sav_filename, r_opath);
         strcat(sav_filename, "\\");
         strcat(sav_filename, psitesInfo->name[i]);
+        strcpy(sav_dat_filename, sav_filename);
         strcat(sav_filename, ".csv");
+        strcat(sav_dat_filename, ".dat");
 
         // Open file for writing
-        FILE *outfile = fopen(sav_filename, "w");
-        if (outfile == NULL) {
-            fprintf(stderr, "Error opening file for writing\n");
-        }
+//        FILE *outfile = fopen(sav_filename, "w");
+//        if (outfile == NULL) {
+//            fprintf(stderr, "Error opening file for writing\n");
+//        }
 
         // Write each array to file with labels
-        writeArrayToFileWithLabels(outfile, pobs->P1, "P1");
-        writeArrayToFileWithLabels(outfile, pobs->P2, "P2");
-        writeArrayToFileWithLabels(outfile, pobs->L1, "L1");
-        writeArrayToFileWithLabels(outfile, pobs->L2, "L2");
+//        writeArrayToFileWithLabels(outfile, pobs->P1, "P1");
+//        writeArrayToFileWithLabels(outfile, pobs->P2, "P2");
+//        writeArrayToFileWithLabels(outfile, pobs->L1, "L1");
+//        writeArrayToFileWithLabels(outfile, pobs->L2, "L2");
+
+        //writeToFile(sav_dat_filename, pobs, 1);
+        writeObsToFile(sav_dat_filename, pobs, 2880, 2880, 2880, 2880, 32);
 
         // Close file
-        fclose(outfile);
+//        fclose(outfile);
 
         printf("Data written to file successfully.\n");
 
     }
-    printf("Step one: completing !\n");
+    //将obs数据以dat的格式存储
+    //writeToFile("D:\\projects\\M_DCB_C\\RINEX_output_files\\sites_info.dat", &sitesInfo, r_file_num);
+
+    printf("Step one: completings !\n");
 }
 
 void read_sp3(const char* s_ipath, const char* s_opath){
@@ -565,6 +581,7 @@ void read_sp3(const char* s_ipath, const char* s_opath){
     }
 }
 
+//读取ionex文件，相关结果存放在sitesInfo.RDCB_REF和sDCB_REF结构体中
 void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo, SDCB_REF sdcb_ref){
     int n = r_file_num;
     int new_size = 0;
@@ -652,10 +669,13 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
         strcat(ionex_file_path, "\\");
         strcat(ionex_file_path, ionex_filenames[index]);
 
-        r_ionex(ionex_file_path, i, sites_name, doy_num, sdcb_ref, DCB_rec);
+        read_single_ionex(ionex_file_path, i, sites_name, doy_num, sdcb_ref, DCB_rec);
 
-        printf("Hello");
+        for (int j = 0; j < ionex_file_num; j++){
+            sitesInfo.RDCB_REF[index2[j]] = DCB_rec[j];
+        }
 
+        sdcb_ref.doy[i] = doys[i];
     }
 }
 
@@ -994,7 +1014,8 @@ void get_filenames(const char* folderPath, char** filenames, int file_num) {
     closedir(dir);
 }
 
-void r_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB_REF sDCB_REF, double* DCB_rec) {
+//读取单个ionex文件，将sDCB和rDCB存入sDCB_REF.value和DCB_rec中
+void read_single_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB_REF sDCB_REF, double* DCB_rec) {
     int flag = 0;
     int prn = 0;
 
@@ -1031,7 +1052,7 @@ void r_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB
                 if (strlen(line) > 10 && (line[3] == 'G' || line[3] == ' ') && !(strncmp(line + 60, "STATION / BIAS / RMS", 20)) == 1){
                     //比较line的第7到第10个字符是否在sites_name中，如果在，则执行下面的语句
                     for (int j = 0; j < doy_num; j++){
-                        if (strncmp(line + 4, sites_name[j], 4) == 0){
+                        if (strncmp(line + 6, sites_name[j], 4) == 0){
                             sscanf(line + 29, "%7lf", &DCB_rec[j]);
                             break;
                         }
@@ -1041,5 +1062,151 @@ void r_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB
         }
     }
     //关闭文件
+    fclose(file);
+}
+
+void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
+    for (int i=0; i < r_file_num; i++){
+        char* site; int doy;
+        site = (char *) malloc(64 * sizeof(char));
+        sscanf(sitesInfo.name[i], "%4s", site);
+        doy = sitesInfo.doy[i];
+        int index = 0;
+
+        //找到去重后的rinex文件列表中与site对应的index
+        int new_size = 0;
+        char** sites; //去重的DOY存放在doys数组中，大小为new_size
+        //给doys申请n个int类型的内存，并赋初值为0
+        sites = (char **) malloc(r_file_num * sizeof(char));
+        for (int j = 0; j < r_file_num; j++){
+            sites[j] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
+        }
+        //遍历r_file的doy
+        sscanf(sitesInfo.name[0], "%4s", sites[0]);
+        new_size++;
+        for (int j = 1; j < r_file_num; j++){
+            //查看doys数组中是否有与psitesInfo->doy[i]相同的元素，若有，则不做任何行为，若无，则将psitesInfo->doy[i]赋值给doys[new_size]，并且new_size加1
+            int flag = 0;
+            char* temp_name;
+            temp_name = (char *) malloc(4 * sizeof(char));
+            sscanf(sitesInfo.name[j], "%4s", temp_name);
+
+            for (int k = 0; k < new_size; k++){
+                //如果sites[j]和temp_name字符串完全相同
+                if (strcmp(sites[k], temp_name) == 0){
+                    flag = 1;   //说明在这个小循环中找到了相同的元素
+                    break;
+                }
+            }
+            if (flag == 0){
+                sscanf(temp_name, "%4s", sites[new_size]);
+                new_size++;
+            }
+        }
+
+        for (int j=0;j<new_size;j++){
+            if (strcmp(sites[j], site) == 0){
+                index = j;
+                break;
+            }
+        }
+
+        double sx = 0; double sy = 0; double sz = 0;
+        sx = sitesInfo.coor[index][0];
+        sy = sitesInfo.coor[index][1];
+        sz = sitesInfo.coor[index][2];
+
+        if (sx == 0 && sy == 0 && sz == 0){
+            continue;
+        }
+    }
+}
+
+// 将结构体数组写入文件
+void writeToFile(char* filename, Obs* obs, int num_sites) {
+    FILE* fp = fopen(filename, "wb");
+    if (fp == NULL) {
+        printf("无法打开文件 %s\n", filename);
+        return;
+    }
+
+    // 写入结构体数组数据到文件中
+    fwrite(obs, sizeof(obs), num_sites, fp);
+
+    fclose(fp);
+}
+
+void writeObsToFile(const char* filename, Obs* obs, int p1Rows, int p2Rows, int l1Rows, int l2Rows, int cols) {
+    FILE* file = fopen(filename, "wb");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+
+    // 写入每个数组的行数和列数
+    fwrite(&p1Rows, sizeof(int), 1, file);
+    fwrite(&p2Rows, sizeof(int), 1, file);
+    fwrite(&l1Rows, sizeof(int), 1, file);
+    fwrite(&l2Rows, sizeof(int), 1, file);
+    fwrite(&cols, sizeof(int), 1, file);
+
+    // 为了简化，这里假设所有数组的列数相同
+    for (int i = 0; i < p1Rows; i++) {
+        fwrite(obs->P1[i], sizeof(double), cols, file);
+    }
+    // 重复上述过程写入P2, L1, L2
+    for (int i = 0; i < p2Rows; i++) {
+        fwrite(obs->P2[i], sizeof(double), cols, file);
+    }
+    for (int i = 0; i < l1Rows; i++) {
+        fwrite(obs->L1[i], sizeof(double), cols, file);
+    }
+    for (int i = 0; i < l2Rows; i++) {
+        fwrite(obs->L2[i], sizeof(double), cols, file);
+    }
+
+
+    fclose(file);
+}
+
+void readObsFromFile(const char* filename, Obs* obs) {
+    FILE* file = fopen(filename, "rb");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return;
+    }
+
+    int p1Rows, p2Rows, l1Rows, l2Rows, cols;
+    fread(&p1Rows, sizeof(int), 1, file);
+    fread(&p2Rows, sizeof(int), 1, file);
+    fread(&l1Rows, sizeof(int), 1, file);
+    fread(&l2Rows, sizeof(int), 1, file);
+    fread(&cols, sizeof(int), 1, file);
+
+    // 根据读取的行列数分配内存和读取数据
+    // 注意处理内存分配失败的情况
+    // 以下代码为伪代码，需要根据实际情况调整
+    obs->P1 = (double**)malloc(p1Rows * sizeof(double*));
+    for (int i = 0; i < p1Rows; i++) {
+        obs->P1[i] = (double*)malloc(cols * sizeof(double));
+        fread(obs->P1[i], sizeof(double), cols, file);
+    }
+    // 重复上述过程读取P2, L1, L2
+    obs->P2 = (double**)malloc(p2Rows * sizeof(double*));
+    for (int i = 0; i < p2Rows; i++) {
+        obs->P2[i] = (double*)malloc(cols * sizeof(double));
+        fread(obs->P2[i], sizeof(double), cols, file);
+    }
+    obs->L1 = (double**)malloc(l1Rows * sizeof(double*));
+    for (int i = 0; i < l1Rows; i++) {
+        obs->L1[i] = (double*)malloc(cols * sizeof(double));
+        fread(obs->L1[i], sizeof(double), cols, file);
+    }
+    obs->L2 = (double**)malloc(l2Rows * sizeof(double*));
+    for (int i = 0; i < l2Rows; i++) {
+        obs->L2[i] = (double*)malloc(cols * sizeof(double));
+        fread(obs->L2[i], sizeof(double), cols, file);
+    }
+
     fclose(file);
 }
