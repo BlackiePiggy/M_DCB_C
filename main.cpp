@@ -74,10 +74,15 @@ void load_Sp3_From_Bin_File(double ****sate_xyz, int dim1, int dim2, int dim3, c
 double* XYZ2BLH(double x, double y, double z);
 double* get_EA(double sx, double sy, double sz, double x, double y, double z);
 void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, int lim);
+double** pre_pro(Obs* obs_temp);
 void convertTo2D(int *arr, int size, int** result);
 int** Get_arc(double** L6, int prn);
 int** removeRows(int** arc, int n, int* arc_d, int d_size, int* new_size);
 void deleteRowAndReplace(int ***arc, int *n, int row);
+double mean(double** array, int start, int end, int prn);
+void save_P4_To_Bin_File(double **P4, int dim1, int dim2, const char *filename);
+void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filename);
+
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -1186,8 +1191,27 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
 
         cutobs(&obs_temp, sate_xyz, sx, sy, sz, z_threshold);//筛选后的obs值存在obs_temp中
 
+        double** P4 = (double **)malloc(2880 * sizeof(double *));
+        for (int i = 0; i < 2880; i++) {
+            P4[i] = (double *)malloc(32 * sizeof(double));
+            for (int j = 0; j < 32; j++) {
+                P4[i][j] = 0.0; // 初始化为零
+            }
+        }
 
+        P4 = pre_pro(&obs_temp);//对obs_temp进行预处理
 
+        char sav_P4_filename[256];
+        //先将site的值赋给sav_P4_filename
+        strcpy(sav_P4_filename, site);
+        //再取doy赋给sav_P4_filename
+        char doy_str_3[6];
+        snprintf(doy_str_3, sizeof(doy_str_3), "%d", doy);
+        strncat(sav_P4_filename, doy_str_3, 5);
+        //在字符串中添加"_P4.dat"
+        strcat(sav_P4_filename, "_P4.dat");
+
+        save_P4_To_Bin_File(P4, 2880, 32, sav_P4_filename);//将P4存入文件中
     }
 }
 
@@ -1561,7 +1585,6 @@ double** pre_pro(Obs* obs_temp){
                 }
                 //删除掉arc_final[j]这一行
                 deleteRowAndReplace(&arc_final, &arc_final_n, j);
-                arc_final_n--;
                 continue;
             }
 
@@ -1570,20 +1593,112 @@ double** pre_pro(Obs* obs_temp){
             double* sigma2 = (double *) malloc((arc_final[j][1] - arc_final[j][0] + 1) * sizeof(double));
             ave_N[0] = Nw[arc_final[j][0]][prn];
             sigma[0] = 0; sigma2[0] = 0;
-            int count = 2;
+            int count = 1;
+            double T = 0; double I1 = 0; double I2 = 0;
 
             //----------------------check epoch k+1
+            for (int k = arc_final[j][0]+1; k < arc_final[j][1]-1; k++){
+                ave_N[count] = ave_N[count-1] + (Nw[k][prn] - ave_N[count-1])/(count+1);
+                sigma2[count] = sigma2[count-1] + (Nw[k][prn] - ave_N[count-1])*(Nw[k][prn] - ave_N[count-1]) - sigma2[count-1]/(count+1);
+                sigma[count] = sqrt(sigma2[count]/(count));
+                T = fabs(Nw[k+1][prn] - ave_N[count]);
+                I1 = fabs(Li[k+1][prn] - Li[k][prn]);
 
+                //-------------------------no cycle slip
+                if (T<4*sigma[count]&&I1<0.28){
+                    count++;
+                    continue;
+                }else{
+                    //---------------------arc end
+                    if (k+1 == arc_final[j][1]){
+                        if(k+1-arc_final[j][0]>10){
+                            L6[k+1][prn] = 0; Li[k][prn] = 0; Nw[k+1][prn] = 0;
+                            obs_temp->L1[k+1][prn] = 0; obs_temp->L2[k+1][prn] = 0; obs_temp->P1[k+1][prn] = 0; obs_temp->P2[k+1][prn] = 0;
+                            arc_final[j][1] = k;
+                        }else{//------delete scatter epoches
+                            for (int l = arc_final[j][0]; l<k+1;l++){
+                                L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
+                                obs_temp->L1[l][prn] = 0; obs_temp->L2[l][prn] = 0; obs_temp->P1[l][prn] = 0; obs_temp->P2[l][prn] = 0;
+                            }
+                            //删去第j行
+                            deleteRowAndReplace(&arc_final, &arc_final_n, j);//arc_final_n--已经在函数中操作了
+                            j--;
+                        }
+                        break;
+                    }
 
+                    I2 = fabs(Li[k+2][prn] - Li[k+1][prn]);
+
+                    if (fabs(Nw[k+2][prn] - Nw[k+1][prn])<1&&I2<1){ //-----------cycle slip
+                        if (k+1-arc_final[j][0]>10) {
+                            //待写
+                        }else{
+                            for (int l = arc_final[j][0]; l < k+1; l++){
+                                L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
+                                obs_temp->L1[l][prn] = 0; obs_temp->L2[l][prn] = 0; obs_temp->P1[l][prn] = 0; obs_temp->P2[l][prn] = 0;
+                            }
+                            arc_final[j][0] = k+1;
+                            j--;
+                        }
+                    }else{  //-----------------gross error
+                        if (k+1-arc[j][0]>10){
+                            L6[k+1][prn] = 0; Li[k][prn] = 0; Nw[k+1][prn] = 0;
+                            obs_temp->L1[k+1][prn] = 0; obs_temp->L2[k+1][prn] = 0; obs_temp->P1[k+1][prn] = 0; obs_temp->P2[k+1][prn] = 0;
+                            //arc_final、arc_final_n修改
+                        }else{
+                            for (int l = arc_final[j][0]; l<k+2;l++){
+                                L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
+                                obs_temp->L1[l][prn] = 0; obs_temp->L2[l][prn] = 0; obs_temp->P1[l][prn] = 0; obs_temp->P2[l][prn] = 0;
+                            }
+                            arc_final[j][0] = k+2;
+                            j--;
+                        }
+                    }
+                    break;
+                }
+            }
+            j++;
+        }
+        //P4(:,i)=obs.P1(:,i)-obs.P2(:,i);
+        for (int j = 0; j < 2880; j++){
+            P4[j][prn] = obs_temp->P1[j][prn] - obs_temp->P2[j][prn];
+        }
+
+        //L4(:,i)=(c/f1)*obs.L1(:,i)-(c/f2)*obs.L2(:,i);
+        for (int j = 0; j < 2880; j++){
+            L4[j][prn] = (c/f1)*obs_temp->L1[j][prn] - (c/f2)*obs_temp->L2[j][prn];
         }
 
         //--------smoothing-------------------------
-
+        for (int j = 0; j<arc_final_n; j++){
+            int t = 2;
+            for (int k = arc_final[j][0]+1; k<arc[j][1];k++){
+                P4[k][prn] = P4[k][prn]/t + (P4[k-1][prn]+L4[k-1][prn]-L4[k][prn])/t;
+                t++;
+            }
+            //P4(arc(j,1):arc(j,1)+4,i)=0;
+            for (int k = arc_final[j][0]; k<arc_final[j][0]+4;k++){
+                P4[k][prn] = 0;
+            }
+        }
 
         //--------remove bad P4---------------------
+        arc = Get_arc(P4, prn);
+        arc_n = sizeof(arc) / sizeof(arc[0]);
+        aaa = sizeof(arc[0]) / sizeof(arc[0][0]);
 
+        for (int j = 0; j<arc_n; j++){
+            double ave = mean(P4, arc[j][0], arc[j][1], prn);
 
+            if (fabs(ave)>10){
+                for (int kk = arc[j][0]; kk<arc[j][1];kk++){
+                    P4[kk][prn] = 0;
+                }
+            }
+        }
     }
+
+    return P4;
 }
 
 int** Get_arc(double** L6, int prn){
@@ -1719,4 +1834,42 @@ void deleteRowAndReplace(int ***arc, int *n, int row) {
     // 将原数组指针指向新数组
     *arc = tempArc;
     *n = newN; // 更新外部n的值
+}
+
+double mean(double** array, int start, int end, int prn){
+    double sum = 0;
+    for (int i = start; i < end; i++){
+        sum += array[i][prn];
+    }
+    return sum / (end - start);
+}
+
+void save_P4_To_Bin_File(double **P4, int dim1, int dim2, const char *filename) {
+    FILE *file = fopen(filename, "wb");
+    if (file == NULL) {
+        perror("Failed to open file");
+        exit(1);
+    }
+
+    for (int i = 0; i < dim1; ++i) {
+        fwrite(P4[i], sizeof(double), dim2, file);
+    }
+
+    fclose(file);
+}
+
+void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        perror("Failed to open file");
+        exit(1);
+    }
+
+    *P4 = (double **)malloc(dim1 * sizeof(double *));
+    for (int i = 0; i < dim1; ++i) {
+        (*P4)[i] = (double *)malloc(dim2 * sizeof(double));
+        fread((*P4)[i], sizeof(double), dim2, file);
+    }
+
+    fclose(file);
 }
