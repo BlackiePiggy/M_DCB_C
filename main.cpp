@@ -4,10 +4,6 @@
 #include <string.h>
 #include <math.h>
 
-#define pi 3.14159265358979323846
-#define c 299792458
-
-
 // 假设 SitesInfo 结构体
 typedef struct {
     char** name;
@@ -42,6 +38,8 @@ int r_file_num;
 double* DCB_rec;
 double f1 = 1575.42e6;
 double f2 = 1227.6e6;
+double pi = 3.14159265358979323846;
+double c = 299792458;
 
 //全局变量
 SitesInfo sitesInfo;
@@ -73,19 +71,21 @@ void save_sp3_To_Bin_File(double ***sate_xyz, int dim1, int dim2, int dim3, cons
 void load_Sp3_From_Bin_File(double ****sate_xyz, int dim1, int dim2, int dim3, const char *filename);
 double* XYZ2BLH(double x, double y, double z);
 double* get_EA(double sx, double sy, double sz, double x, double y, double z);
-void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, int lim);
+void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, double lim);
 double** pre_pro(Obs* obs_temp);
-void convertTo2D(int *arr, int size, int** result);
-int** Get_arc(double** L6, int prn);
+int** Get_arc(double** L6, int prn,int* parc_n);
 int** removeRows(int** arc, int n, int* arc_d, int d_size, int* new_size);
 void deleteRowAndReplace(int ***arc, int *n, int row);
 double mean(double** array, int start, int end, int prn);
 void save_P4_To_Bin_File(double **P4, int dim1, int dim2, const char *filename);
 void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filename);
-
+char** getFileNamesInDirectory(const char *path, char **fileNames, int num);
+void DCB_Estimation();
+int** ConvertVectorTo2DMatrix(int *arr, int size, int *returnSize);
 
 // -----------------------------Main--------------------------------------
 int main() {
+    setbuf(stdout, 0);
     printf("elevation angle threshold(unit:degree)(10 degree is recommended): %d\n", lim);
     printf("the order of spheric harmonic function (4 order is recommended): %d\n", order);
     printf("MDCB(multi-stations) starts running!\n");
@@ -102,6 +102,8 @@ int main() {
     // Step four-------------------Ionosphere Observations-----------------------
     get_smoothed_P4(sitesInfo, (lim*pi/180), 0);
 
+    // Step Five-------------------DCB Estimation--------------------------------
+    DCB_Estimation();
 
     return 0;
 }
@@ -368,7 +370,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                                 fgets(line, sizeof(line), file);
                                 continue;
                             }
-                            for (int k = 0; k < 5; k++){//思朗科技
+                            for (int k = 0; k < 5; k++){//
                                 //判断line的长度，如果大于16*(k+1)-3，则执行下面的语句
                                 if (strlen(line) > 16*(k+1)-3){
                                     //strcmp(line(16*j-15:16*j-2),'              '),如果line的第15*(k+1)-15到第15*(k+1)-2个字符是空格，则执行下面的语句
@@ -1339,7 +1341,7 @@ void load_Sp3_From_Bin_File(double ****sate_xyz, int dim1, int dim2, int dim3, c
     fclose(file);
 }
 
-void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, int lim){
+void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, double lim){
     double** x = sate_xyz[0];
     double** y = sate_xyz[1];
     double** z = sate_xyz[2];
@@ -1347,6 +1349,7 @@ void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, 
     for (int i = 0; i < 32; i++){
         for (int j = 0; j < 2880; j++){
             if (obs_temp->L1[j][i] == 0 || obs_temp->L2[j][i] == 0 || obs_temp->P1[j][i] == 0 || obs_temp->P2[j][i] == 0){
+                obs_temp->L1[j][i] = 0; obs_temp->L2[j][i] = 0; obs_temp->P1[j][i] = 0; obs_temp->P2[j][i] = 0;
                 continue;
             }
 
@@ -1519,17 +1522,17 @@ double** pre_pro(Obs* obs_temp){
     }
 
     for (int prn = 0; prn < 32; prn++){
-        int** arc; int arc_n = 0; int aaa = 0;
+        int** arc; int arc_n = 0 ; int aaa = 2;
+
+        if (prn==4){
+            prn = 4;
+        }
 
         //------divide arc---------------------------
-        arc = Get_arc(L6, prn);//arc是一个n行2列的数组，每一行代表一个arc的起始和终止的index
-        //arc_n是arc的行数
-        arc_n = sizeof(arc) / sizeof(arc[0]);
-        //aaa是arc的列数
-        aaa = sizeof(arc[0]) / sizeof(arc[0][0]);
+        arc = Get_arc(L6, prn, &arc_n);//arc是一个n行2列的数组，每一行代表一个arc的起始和终止的index
 
         //----delete arc less than 10 epoches-------
-        int* arc_d; int index_of_arc_d = 0;
+        int* arc_d; int num_of_arc_d = 0;
         arc_d = (int *) malloc(arc_n * sizeof(int));//用于记录epoch<10在arc_n中的索引
 
         for (int j = 0; j < arc_n; j++){
@@ -1539,26 +1542,26 @@ double** pre_pro(Obs* obs_temp){
                     obs_temp->P1[k][prn] = 0; obs_temp->P2[k][prn] = 0; obs_temp->L1[k][prn] = 0; obs_temp->L2[k][prn] = 0;
                     L6[k][prn] = 0; Li[k][prn] = 0; Nw[k][prn] = 0;
                 }
-                arc_d[index_of_arc_d] = j;
-                index_of_arc_d++;
+                arc_d[num_of_arc_d] = j;
+                num_of_arc_d++;
             }
         }
 
-        int d_size = sizeof(arc_d) / sizeof(arc_d[0]);//需要删除的行数量
-        int new_size;
-
-        int** arc_final = removeRows(arc, arc_n, arc_d, d_size, &new_size);//删除对应行后的arc数组，之后都处理arc_final数组
+        for (int j = 0; j < num_of_arc_d; j++){
+            deleteRowAndReplace(&arc, &arc_n, arc_d[j]);
+        }
+        //arc = deleteRowAndReplace(&arc, &arc_n, int row);//第一个参数是待删除的原数组；第二个参数是原数组的行数；第三个是待删除的行的索引
 
         //----mw detect cycle slip------------------
-        int arc_final_n = sizeof(arc_final) / sizeof(arc_final[0]);
-        int arc_final_aaa = sizeof(arc_final[0]) / sizeof(arc_final[0][0]);
+        arc_n = sizeof(arc) / sizeof(arc[0]);
+        aaa = sizeof(arc[0]) / sizeof(arc[0][0]);
         int j = 0;
 
-        while (j<arc_final_n){
+        while (j<arc_n){
             //----first epoch check----------
-            int e = arc_final[j][0];
+            int e = arc[j][0];
             while (1){
-                if (e+1 == arc_final[j][1] || e == arc_final[j][1]){
+                if (e+1 == arc[j][1] || e == arc[j][1]){
                     break;
                 }
                 double fir = Nw[e][prn]; double sec = Nw[e+1][prn]; double thi = Nw[e+2][prn];
@@ -1570,34 +1573,34 @@ double** pre_pro(Obs* obs_temp){
                     L6[e][prn] = 0; Li[e][prn] = 0; Nw[e][prn] = 0;
                     obs_temp->L1[e][prn] = 0; obs_temp->L2[e][prn] = 0; obs_temp->P1[e][prn] = 0; obs_temp->P2[e][prn] = 0;
                     e++;
-                    arc_final[j][0] = e;
+                    arc[j][0] = e;
                 }else{
-                    arc_final[j][0] = e;
+                    arc[j][0] = e;
                     break;
                 }
             }
 
             //----detect------------------
-            if (arc_final[j][1] - arc_final[j][0]<10){
-                for (int k = arc_final[j][0]; k < arc_final[j][1]; k++){
+            if (arc[j][1] - arc[j][0]<10){
+                for (int k = arc[j][0]; k < arc[j][1]; k++){
                     obs_temp->P1[k][prn] = 0; obs_temp->P2[k][prn] = 0; obs_temp->L1[k][prn] = 0; obs_temp->L2[k][prn] = 0;
                     L6[k][prn] = 0; Li[k][prn] = 0; Nw[k][prn] = 0;
                 }
                 //删除掉arc_final[j]这一行
-                deleteRowAndReplace(&arc_final, &arc_final_n, j);
+                deleteRowAndReplace(&arc, &arc_n, j);
                 continue;
             }
 
-            double* ave_N = (double *) malloc((arc_final[j][1] - arc_final[j][0] + 1) * sizeof(double));
-            double* sigma = (double *) malloc((arc_final[j][1] - arc_final[j][0] + 1) * sizeof(double));
-            double* sigma2 = (double *) malloc((arc_final[j][1] - arc_final[j][0] + 1) * sizeof(double));
-            ave_N[0] = Nw[arc_final[j][0]][prn];
+            double* ave_N = (double *) malloc((arc[j][1] - arc[j][0] + 1) * sizeof(double));
+            double* sigma = (double *) malloc((arc[j][1] - arc[j][0] + 1) * sizeof(double));
+            double* sigma2 = (double *) malloc((arc[j][1] - arc[j][0] + 1) * sizeof(double));
+            ave_N[0] = Nw[arc[j][0]][prn];
             sigma[0] = 0; sigma2[0] = 0;
             int count = 1;
             double T = 0; double I1 = 0; double I2 = 0;
 
             //----------------------check epoch k+1
-            for (int k = arc_final[j][0]+1; k < arc_final[j][1]-1; k++){
+            for (int k = arc[j][0]+1; k < arc[j][1]-1; k++){
                 ave_N[count] = ave_N[count-1] + (Nw[k][prn] - ave_N[count-1])/(count+1);
                 sigma2[count] = sigma2[count-1] + (Nw[k][prn] - ave_N[count-1])*(Nw[k][prn] - ave_N[count-1]) - sigma2[count-1]/(count+1);
                 sigma[count] = sqrt(sigma2[count]/(count));
@@ -1610,18 +1613,18 @@ double** pre_pro(Obs* obs_temp){
                     continue;
                 }else{
                     //---------------------arc end
-                    if (k+1 == arc_final[j][1]){
-                        if(k+1-arc_final[j][0]>10){
+                    if (k+1 == arc[j][1]){
+                        if(k+1-arc[j][0]>10){
                             L6[k+1][prn] = 0; Li[k][prn] = 0; Nw[k+1][prn] = 0;
                             obs_temp->L1[k+1][prn] = 0; obs_temp->L2[k+1][prn] = 0; obs_temp->P1[k+1][prn] = 0; obs_temp->P2[k+1][prn] = 0;
-                            arc_final[j][1] = k;
+                            arc[j][1] = k;
                         }else{//------delete scatter epoches
-                            for (int l = arc_final[j][0]; l<k+1;l++){
+                            for (int l = arc[j][0]; l<k+1;l++){
                                 L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
                                 obs_temp->L1[l][prn] = 0; obs_temp->L2[l][prn] = 0; obs_temp->P1[l][prn] = 0; obs_temp->P2[l][prn] = 0;
                             }
                             //删去第j行
-                            deleteRowAndReplace(&arc_final, &arc_final_n, j);//arc_final_n--已经在函数中操作了
+                            deleteRowAndReplace(&arc, &arc_n, j);//arc_final_n--已经在函数中操作了
                             j--;
                         }
                         break;
@@ -1630,14 +1633,14 @@ double** pre_pro(Obs* obs_temp){
                     I2 = fabs(Li[k+2][prn] - Li[k+1][prn]);
 
                     if (fabs(Nw[k+2][prn] - Nw[k+1][prn])<1&&I2<1){ //-----------cycle slip
-                        if (k+1-arc_final[j][0]>10) {
+                        if (k+1-arc[j][0]>10) {
                             //待写
                         }else{
-                            for (int l = arc_final[j][0]; l < k+1; l++){
+                            for (int l = arc[j][0]; l < k+1; l++){
                                 L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
                                 obs_temp->L1[l][prn] = 0; obs_temp->L2[l][prn] = 0; obs_temp->P1[l][prn] = 0; obs_temp->P2[l][prn] = 0;
                             }
-                            arc_final[j][0] = k+1;
+                            arc[j][0] = k+1;
                             j--;
                         }
                     }else{  //-----------------gross error
@@ -1646,11 +1649,11 @@ double** pre_pro(Obs* obs_temp){
                             obs_temp->L1[k+1][prn] = 0; obs_temp->L2[k+1][prn] = 0; obs_temp->P1[k+1][prn] = 0; obs_temp->P2[k+1][prn] = 0;
                             //arc_final、arc_final_n修改
                         }else{
-                            for (int l = arc_final[j][0]; l<k+2;l++){
+                            for (int l = arc[j][0]; l<k+2;l++){
                                 L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
                                 obs_temp->L1[l][prn] = 0; obs_temp->L2[l][prn] = 0; obs_temp->P1[l][prn] = 0; obs_temp->P2[l][prn] = 0;
                             }
-                            arc_final[j][0] = k+2;
+                            arc[j][0] = k+2;
                             j--;
                         }
                     }
@@ -1670,20 +1673,20 @@ double** pre_pro(Obs* obs_temp){
         }
 
         //--------smoothing-------------------------
-        for (int j = 0; j<arc_final_n; j++){
+        for (int j = 0; j<arc_n; j++){
             int t = 2;
-            for (int k = arc_final[j][0]+1; k<arc[j][1];k++){
+            for (int k = arc[j][0]+1; k<arc[j][1];k++){
                 P4[k][prn] = P4[k][prn]/t + (P4[k-1][prn]+L4[k-1][prn]-L4[k][prn])/t;
                 t++;
             }
             //P4(arc(j,1):arc(j,1)+4,i)=0;
-            for (int k = arc_final[j][0]; k<arc_final[j][0]+4;k++){
+            for (int k = arc[j][0]; k<arc[j][0]+4;k++){
                 P4[k][prn] = 0;
             }
         }
 
         //--------remove bad P4---------------------
-        arc = Get_arc(P4, prn);
+        arc = Get_arc(P4, prn, &arc_n);
         arc_n = sizeof(arc) / sizeof(arc[0]);
         aaa = sizeof(arc[0]) / sizeof(arc[0][0]);
 
@@ -1701,7 +1704,7 @@ double** pre_pro(Obs* obs_temp){
     return P4;
 }
 
-int** Get_arc(double** L6, int prn){
+int** Get_arc(double** L6, int prn, int* parc_n){
     int* arc; int index_of_arc = 0;
     arc = (int *) malloc(2880 * sizeof(int));
     //arc赋初值为0
@@ -1723,7 +1726,7 @@ int** Get_arc(double** L6, int prn){
         }
         //if array(i)==0&&array(i+1)~=0
         if (L6[i][prn] == 0 && L6[i+1][prn] != 0){
-            arc[index_of_arc] = i;
+            arc[index_of_arc] = i+1;
             index_of_arc++;
             continue;
         }
@@ -1735,52 +1738,12 @@ int** Get_arc(double** L6, int prn){
         }
     }
 
-    //遍历arc数组，如果除了第1个值的其他值不等于0，则计数器加1，以计算arc数组的长度
-    int counter = 0;
-    for (int i = 0; i < 2880; i++){
-        if (i ==0 && arc[0] == 0 && arc[1] != 0){
-            counter++;
-        }
-        if (arc[i] != 0){
-            counter++;
-        }
-    }
+    int returnSize;
+    int** result = ConvertVectorTo2DMatrix(arc, index_of_arc, &returnSize);
 
-    //创建一个新的数组arc_temp，长度为counter
-    int* arc_temp;
-    arc_temp = (int *) malloc(counter * sizeof(int));
-    for (int i = 0; i < counter; i++){
-        arc_temp[i] = arc[i];
-    }
-
-    int size = sizeof(arc_temp) / sizeof(arc_temp[0]);
-    int rows = size / 2;
-
-    // 动态分配二维数组的内存
-    int ** result;
-    //申请一个rows行2列的内存
-    result = (int **)malloc(rows * sizeof(int *));
-    for (int i = 0; i < rows; i++) {
-        result[i] = (int *)malloc(2 * sizeof(int));
-    }
-
-    convertTo2D(arc_temp, size, result);
+    *parc_n = returnSize;//返回arc的行数
 
     return result;
-}
-
-void convertTo2D(int *arr, int size, int** result){
-    // 检查元素数量是否为偶数
-    if (size % 2 != 0) {
-        printf("Error: The number of elements in the array must be even.\n");
-        exit(1);
-    }
-
-    // 将一维数组的元素复制到二维数组中
-    for (int i = 0; i < size / 2; i++) {
-        result[i][0] = arr[2 * i];
-        result[i][1] = arr[2 * i + 1];
-    }
 }
 
 int** removeRows(int** arc, int n, int* arc_d, int d_size, int* new_size) {
@@ -1805,10 +1768,11 @@ int** removeRows(int** arc, int n, int* arc_d, int d_size, int* new_size) {
             arc_final_index++;
         }
     }
-
     return arc_final;
 }
 
+// 功能：删除二维数组的某行，并返回删除后的数组
+// 入参：1. arc：指向二维数组的指针 2. n：指向数组行数的指针 3. row：要删除的行的索引
 void deleteRowAndReplace(int ***arc, int *n, int row) {
     int newN = *n - 1; // 新数组的行数
     int **tempArc = (int **)malloc(newN * sizeof(int *));
@@ -1872,4 +1836,73 @@ void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filenam
     }
 
     fclose(file);
+}
+
+void DCB_Estimation(){
+    char** sp3_list_name; //存储了星历文件文件夹的文件名
+    int sp3_list_num = 0; //存储了星历文件文件夹的文件数量
+
+    sp3_list_num = countFilesInDirectory(s_opath);
+
+    //为sp3_list_name分配内存
+    sp3_list_name = (char **)malloc(sp3_list_num * sizeof(char *));
+    for (int i = 0; i < sp3_list_num; i++) {
+        sp3_list_name[i] = (char *)malloc(256 * sizeof(char));
+    }
+
+    //获取sp3_list_name
+    sp3_list_name = getFileNamesInDirectory(s_opath, sp3_list_name, sp3_list_num);
+
+    for (int i = 0; i < sp3_list_num; i++){
+
+    }
+}
+
+// 返回一个包含文件夹中文件的名称的字符串数组，注意入参是const char
+// 使用前请先使用countFilesInDirectory函数获取文件数量
+// 使用前请提前声明一个对应尺寸的字符串数组
+char** getFileNamesInDirectory(const char *path, char **fileNames, int num) {
+    DIR *dir;
+    struct dirent *ent;
+    int i = 0;
+    if ((dir = opendir(path)) != NULL) {
+        while ((ent = readdir(dir)) != NULL) {
+            if (i < 2){
+                i++;
+                continue;
+            }
+            if (i < num+2) {
+                strcpy(fileNames[i-2], ent->d_name);
+                i++;
+            } else {
+                break;
+            }
+        }
+        closedir(dir);
+    } else {
+        perror("Failed to open directory");
+    }
+    return fileNames;
+}
+
+// 函数声明，用于创建新的二维数组
+// 使用前请先计算arr的行数，例如：int size = sizeof(arr) / sizeof(arr[0]);
+// 使用前请先声明一个对应尺寸的二维数组，但不需要赋值（因为函数内最后会通过指针修改这个值），例如： int returnSize;
+int** ConvertVectorTo2DMatrix(int *arr, int size, int *returnSize) {
+    // 动态分配最大可能需要的空间，即size/2个子数组
+    int** result = (int**)malloc((size / 2) * sizeof(int*));
+    int count = 0; // 用于记录最终二维数组的行数
+
+    for (int i = 0; i < size; i += 2) {
+        // 跳过所有两个元素都是0的子数组
+        if (i + 1 < size && !(arr[i] == 0 && arr[i + 1] == 0)) {
+            result[count] = (int*)malloc(2 * sizeof(int)); // 为子数组分配空间
+            result[count][0] = arr[i];   // 存储当前元素和下一个元素
+            result[count][1] = arr[i + 1];
+            count++; // 增加二维数组的行数
+        }
+    }
+
+    *returnSize = count; // 通过指针参数返回二维数组的实际行数
+    return result; // 返回创建的二维数组
 }
