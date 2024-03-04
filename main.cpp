@@ -1524,10 +1524,6 @@ double** pre_pro(Obs* obs_temp){
     for (int prn = 0; prn < 32; prn++){
         int** arc; int arc_n = 0 ; int aaa = 2;
 
-        if (prn==4){
-            prn = 4;
-        }
-
         //------divide arc---------------------------
         arc = Get_arc(L6, prn, &arc_n);//arc是一个n行2列的数组，每一行代表一个arc的起始和终止的index
 
@@ -1538,7 +1534,7 @@ double** pre_pro(Obs* obs_temp){
         for (int j = 0; j < arc_n; j++){
             int n_epoch = arc[j][1] - arc[j][0];
             if (n_epoch<10){
-                for (int k = arc[j][0]; k < arc[j][1]; k++){
+                for (int k = arc[j][0]; k < arc[j][1]+1; k++){
                     obs_temp->P1[k][prn] = 0; obs_temp->P2[k][prn] = 0; obs_temp->L1[k][prn] = 0; obs_temp->L2[k][prn] = 0;
                     L6[k][prn] = 0; Li[k][prn] = 0; Nw[k][prn] = 0;
                 }
@@ -1547,14 +1543,12 @@ double** pre_pro(Obs* obs_temp){
             }
         }
 
-        for (int j = 0; j < num_of_arc_d; j++){
+        //删除掉arc_d中的行
+        for (int j = num_of_arc_d-1 ; j >= 0; j--){
             deleteRowAndReplace(&arc, &arc_n, arc_d[j]);
         }
-        //arc = deleteRowAndReplace(&arc, &arc_n, int row);//第一个参数是待删除的原数组；第二个参数是原数组的行数；第三个是待删除的行的索引
 
         //----mw detect cycle slip------------------
-        arc_n = sizeof(arc) / sizeof(arc[0]);
-        aaa = sizeof(arc[0]) / sizeof(arc[0][0]);
         int j = 0;
 
         while (j<arc_n){
@@ -1582,7 +1576,7 @@ double** pre_pro(Obs* obs_temp){
 
             //----detect------------------
             if (arc[j][1] - arc[j][0]<10){
-                for (int k = arc[j][0]; k < arc[j][1]; k++){
+                for (int k = arc[j][0]; k < arc[j][1]+1; k++){
                     obs_temp->P1[k][prn] = 0; obs_temp->P2[k][prn] = 0; obs_temp->L1[k][prn] = 0; obs_temp->L2[k][prn] = 0;
                     L6[k][prn] = 0; Li[k][prn] = 0; Nw[k][prn] = 0;
                 }
@@ -1600,9 +1594,9 @@ double** pre_pro(Obs* obs_temp){
             double T = 0; double I1 = 0; double I2 = 0;
 
             //----------------------check epoch k+1
-            for (int k = arc[j][0]+1; k < arc[j][1]-1; k++){
+            for (int k = arc[j][0]+1; k < arc[j][1]; k++){
                 ave_N[count] = ave_N[count-1] + (Nw[k][prn] - ave_N[count-1])/(count+1);
-                sigma2[count] = sigma2[count-1] + (Nw[k][prn] - ave_N[count-1])*(Nw[k][prn] - ave_N[count-1]) - sigma2[count-1]/(count+1);
+                sigma2[count] = sigma2[count-1] + ((Nw[k][prn] - ave_N[count-1])*(Nw[k][prn] - ave_N[count-1]) - sigma2[count-1])/(count+1);
                 sigma[count] = sqrt(sigma2[count]/(count));
                 T = fabs(Nw[k+1][prn] - ave_N[count]);
                 I1 = fabs(Li[k+1][prn] - Li[k][prn]);
@@ -1612,6 +1606,7 @@ double** pre_pro(Obs* obs_temp){
                     count++;
                     continue;
                 }else{
+                    //还没debug--start
                     //---------------------arc end
                     if (k+1 == arc[j][1]){
                         if(k+1-arc[j][0]>10){
@@ -1629,9 +1624,11 @@ double** pre_pro(Obs* obs_temp){
                         }
                         break;
                     }
+                    //还没debug--end
 
                     I2 = fabs(Li[k+2][prn] - Li[k+1][prn]);
 
+                    //还没debug--这个函数剩余部分
                     if (fabs(Nw[k+2][prn] - Nw[k+1][prn])<1&&I2<1){ //-----------cycle slip
                         if (k+1-arc[j][0]>10) {
                             //待写
@@ -1781,7 +1778,7 @@ void deleteRowAndReplace(int ***arc, int *n, int row) {
     }
 
     // 复制除了要删除的行之外的所有行到临时数组
-    for (int i = 0, j = 0; i < *n; i++) {
+    for (int i = 0, j = 0; i < *n; i++) {//这里应该从后面往前面删，不然会删一个，序号变一个
         if (i != row) {
             tempArc[j][0] = (*arc)[i][0];
             tempArc[j][1] = (*arc)[i][1];
