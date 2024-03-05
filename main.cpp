@@ -82,6 +82,7 @@ void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filenam
 char** getFileNamesInDirectory(const char *path, char **fileNames, int num);
 void DCB_Estimation();
 int** ConvertVectorTo2DMatrix(int *arr, int size, int *returnSize);
+void InsertRowInArc(int ***arc, int *n, int row, int k, int k_shift);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -1088,6 +1089,37 @@ void read_single_ionex(const char* ionex_file, int i, char** sites_name, int doy
 }
 
 void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
+    //找到去重后的rinex文件列表中与site对应的index
+    int new_size = 0;
+    char** sites; //去重的DOY存放在doys数组中，大小为new_size
+    //给doys申请n个int类型的内存，并赋初值为0
+    sites = (char **) malloc(r_file_num * sizeof(char));
+    for (int j = 0; j < r_file_num; j++){
+        sites[j] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
+    }
+    //遍历r_file的doy
+    sscanf(sitesInfo.name[0], "%4s", sites[0]);
+    new_size++;
+    for (int j = 1; j < r_file_num; j++){
+        //查看doys数组中是否有与psitesInfo->doy[i]相同的元素，若有，则不做任何行为，若无，则将psitesInfo->doy[i]赋值给doys[new_size]，并且new_size加1
+        int flag = 0;
+        char* temp_name;
+        temp_name = (char *) malloc(4 * sizeof(char));
+        sscanf(sitesInfo.name[j], "%4s", temp_name);
+
+        for (int k = 0; k < new_size; k++){
+            //如果sites[j]和temp_name字符串完全相同
+            if (strcmp(sites[k], temp_name) == 0){
+                flag = 1;   //说明在这个小循环中找到了相同的元素
+                break;
+            }
+        }
+        if (flag == 0){
+            sscanf(temp_name, "%4s", sites[new_size]);
+            new_size++;
+        }
+    }
+
     //依次读取每天的rinex参数和sp3参数
     for (int i=0; i < r_file_num; i++){
         //读取RINEX_output_files文件夹中的第一个文件
@@ -1104,37 +1136,6 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
         sscanf(sitesInfo.name[i], "%4s", site);
         doy = sitesInfo.doy[i];
         int index = 0;
-
-        //找到去重后的rinex文件列表中与site对应的index
-        int new_size = 0;
-        char** sites; //去重的DOY存放在doys数组中，大小为new_size
-        //给doys申请n个int类型的内存，并赋初值为0
-        sites = (char **) malloc(r_file_num * sizeof(char));
-        for (int j = 0; j < r_file_num; j++){
-            sites[j] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
-        }
-        //遍历r_file的doy
-        sscanf(sitesInfo.name[0], "%4s", sites[0]);
-        new_size++;
-        for (int j = 1; j < r_file_num; j++){
-            //查看doys数组中是否有与psitesInfo->doy[i]相同的元素，若有，则不做任何行为，若无，则将psitesInfo->doy[i]赋值给doys[new_size]，并且new_size加1
-            int flag = 0;
-            char* temp_name;
-            temp_name = (char *) malloc(4 * sizeof(char));
-            sscanf(sitesInfo.name[j], "%4s", temp_name);
-
-            for (int k = 0; k < new_size; k++){
-                //如果sites[j]和temp_name字符串完全相同
-                if (strcmp(sites[k], temp_name) == 0){
-                    flag = 1;   //说明在这个小循环中找到了相同的元素
-                    break;
-                }
-            }
-            if (flag == 0){
-                sscanf(temp_name, "%4s", sites[new_size]);
-                new_size++;
-            }
-        }
 
         for (int j=0;j<new_size;j++){
             if (strcmp(sites[j], site) == 0){
@@ -1597,7 +1598,7 @@ double** pre_pro(Obs* obs_temp){
             for (int k = arc[j][0]+1; k < arc[j][1]; k++){
                 ave_N[count] = ave_N[count-1] + (Nw[k][prn] - ave_N[count-1])/(count+1);
                 sigma2[count] = sigma2[count-1] + ((Nw[k][prn] - ave_N[count-1])*(Nw[k][prn] - ave_N[count-1]) - sigma2[count-1])/(count+1);
-                sigma[count] = sqrt(sigma2[count]/(count));
+                sigma[count] = sqrt(sigma2[count]/(count+1));
                 T = fabs(Nw[k+1][prn] - ave_N[count]);
                 I1 = fabs(Li[k+1][prn] - Li[k][prn]);
 
@@ -1606,7 +1607,6 @@ double** pre_pro(Obs* obs_temp){
                     count++;
                     continue;
                 }else{
-                    //还没debug--start
                     //---------------------arc end
                     if (k+1 == arc[j][1]){
                         if(k+1-arc[j][0]>10){
@@ -1614,7 +1614,7 @@ double** pre_pro(Obs* obs_temp){
                             obs_temp->L1[k+1][prn] = 0; obs_temp->L2[k+1][prn] = 0; obs_temp->P1[k+1][prn] = 0; obs_temp->P2[k+1][prn] = 0;
                             arc[j][1] = k;
                         }else{//------delete scatter epoches
-                            for (int l = arc[j][0]; l<k+1;l++){
+                            for (int l = arc[j][0]; l<k+1+1;l++){
                                 L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
                                 obs_temp->L1[l][prn] = 0; obs_temp->L2[l][prn] = 0; obs_temp->P1[l][prn] = 0; obs_temp->P2[l][prn] = 0;
                             }
@@ -1624,14 +1624,14 @@ double** pre_pro(Obs* obs_temp){
                         }
                         break;
                     }
-                    //还没debug--end
 
                     I2 = fabs(Li[k+2][prn] - Li[k+1][prn]);
 
                     //还没debug--这个函数剩余部分
                     if (fabs(Nw[k+2][prn] - Nw[k+1][prn])<1&&I2<1){ //-----------cycle slip
                         if (k+1-arc[j][0]>10) {
-                            //待写
+                            //在arc中插入一个k。具体做法：第1部分-arc的前j-1行；第2部分-arc的第j行第一个元素和k；第3部分-k+1到arc第j行的第2个元素；第4部分-arc的第j+1行到最后一行
+                            InsertRowInArc(&arc, &arc_n, j, k,1);
                         }else{
                             for (int l = arc[j][0]; l < k+1; l++){
                                 L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
@@ -1644,7 +1644,7 @@ double** pre_pro(Obs* obs_temp){
                         if (k+1-arc[j][0]>10){
                             L6[k+1][prn] = 0; Li[k][prn] = 0; Nw[k+1][prn] = 0;
                             obs_temp->L1[k+1][prn] = 0; obs_temp->L2[k+1][prn] = 0; obs_temp->P1[k+1][prn] = 0; obs_temp->P2[k+1][prn] = 0;
-                            //arc_final、arc_final_n修改
+                            InsertRowInArc(&arc, &arc_n, j, k,2);
                         }else{
                             for (int l = arc[j][0]; l<k+2;l++){
                                 L6[l][prn] = 0; Li[l][prn] = 0; Nw[l][prn] = 0;
@@ -1672,31 +1672,38 @@ double** pre_pro(Obs* obs_temp){
         //--------smoothing-------------------------
         for (int j = 0; j<arc_n; j++){
             int t = 2;
-            for (int k = arc[j][0]+1; k<arc[j][1];k++){
-                P4[k][prn] = P4[k][prn]/t + (P4[k-1][prn]+L4[k-1][prn]-L4[k][prn])/t;
+            for (int k = arc[j][0]+1; k<arc[j][1]+1;k++){
+                P4[k][prn] = P4[k][prn]/t + (P4[k-1][prn]+L4[k-1][prn]-L4[k][prn])*(t-1)/t;
                 t++;
             }
             //P4(arc(j,1):arc(j,1)+4,i)=0;
-            for (int k = arc[j][0]; k<arc[j][0]+4;k++){
+            for (int k = arc[j][0]; k<arc[j][0]+5;k++){
                 P4[k][prn] = 0;
             }
         }
 
         //--------remove bad P4---------------------
         arc = Get_arc(P4, prn, &arc_n);
-        arc_n = sizeof(arc) / sizeof(arc[0]);
-        aaa = sizeof(arc[0]) / sizeof(arc[0][0]);
 
         for (int j = 0; j<arc_n; j++){
             double ave = mean(P4, arc[j][0], arc[j][1], prn);
 
             if (fabs(ave)>10){
-                for (int kk = arc[j][0]; kk<arc[j][1];kk++){
+                for (int kk = arc[j][0]; kk<arc[j][1]+1;kk++){
                     P4[kk][prn] = 0;
                 }
             }
         }
     }
+
+    //打印P4矩阵
+//    for (int i = 0; i < 2880; i++){
+//        printf(" 第%d行： ", i+1);
+//        for (int j = 0; j < 32; j++){
+//            printf(" %f ", P4[i][j]);
+//        }
+//        printf("\n");
+//    }
 
     return P4;
 }
@@ -1902,4 +1909,43 @@ int** ConvertVectorTo2DMatrix(int *arr, int size, int *returnSize) {
 
     *returnSize = count; // 通过指针参数返回二维数组的实际行数
     return result; // 返回创建的二维数组
+}
+
+//
+void InsertRowInArc(int ***arc, int *n, int row, int k, int k_shift) {
+    int newN = *n + 1; // 新数组的行数
+    int **tempArc = (int **)malloc(newN * sizeof(int *));
+    for (int i = 0; i < newN; i++) {
+        tempArc[i] = (int *)malloc(2 * sizeof(int));
+    }
+
+    //第1部分：arc的前j-1行
+    for (int i = 0; i < row; i++) {
+        tempArc[i][0] = (*arc)[i][0];
+        tempArc[i][1] = (*arc)[i][1];
+    }
+
+    //第2部分：arc的第j行第一个元素和k
+    tempArc[row][0] = (*arc)[row][0];
+    tempArc[row][1] = k;
+
+    //第3部分：k+1到arc第j行的第2个元素
+    tempArc[row+1][0] = k+k_shift;
+    tempArc[row+1][1] = (*arc)[row][1];
+
+    //第4部分：arc的第j+1行到最后一行
+    for (int i = row+2; i < newN; i++) {
+        tempArc[i][0] = (*arc)[i-1][0];
+        tempArc[i][1] = (*arc)[i-1][1];
+    }
+
+    // 释放原数组的内存
+    for (int i = 0; i < *n; i++) {
+        free((*arc)[i]);
+    }
+    free(*arc);
+
+    // 将原数组指针指向新数组
+    *arc = tempArc;
+    *n = newN; // 更新外部n的值
 }
