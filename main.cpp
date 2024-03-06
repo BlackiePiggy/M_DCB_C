@@ -32,6 +32,8 @@ const char* s_ipath = "D:\\projects\\M_DCB_C\\SP3_files";// sp3
 const char* s_opath = "D:\\projects\\M_DCB_C\\SP3_output_files";//
 const char* i_ipath = "D:\\projects\\M_DCB_C\\IONEX_files";// ionex
 const char* i_opath = "D:\\projects\\M_DCB_C\\IONEX_output_files";// ionex
+const char* m_p4_path = "D:\\projects\\M_DCB_C\\M_P4";// P4
+const char* m_result = "D:\\projects\\M_DCB_C\\M_Result";// result
 int lim = 10;// el
 int order = 4;// order
 int r_file_num;
@@ -83,6 +85,11 @@ char** getFileNamesInDirectory(const char *path, char **fileNames, int num);
 void DCB_Estimation();
 int** ConvertVectorTo2DMatrix(int *arr, int size, int *returnSize);
 void InsertRowInArc(int ***arc, int *n, int row, int k, int k_shift);
+void removeSameElementAndReturn_Char(char** vector, char*** new_vector, int vector_size, int* new_size);
+void removeSameElementAndReturn_Int(int* vector, int** new_vector, int vector_size, int* new_size);
+char* get_load_sp3_pathname(int doy);
+char** get_doy_P4_filepath(int doy, int* n_r);
+void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, double** IONC, int* IONC_size, int doy, double*** sate_xyz, SitesInfo sitesInfo, SDCB_REF sDCB_REF, int order);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -1092,14 +1099,22 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
     //找到去重后的rinex文件列表中与site对应的index
     int new_size = 0;
     char** sites; //去重的DOY存放在doys数组中，大小为new_size
-    //给doys申请n个int类型的内存，并赋初值为0
-    sites = (char **) malloc(r_file_num * sizeof(char));
-    for (int j = 0; j < r_file_num; j++){
-        sites[j] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
+
+    //通过一个函数得到一个只包含sitesInfo.name中前四位（site名称）的数组siteOnlyName，大小和sitesInfo.name一样
+    char** sitesOnlyName;
+    sitesOnlyName = (char **) malloc(r_file_num * sizeof(char *));
+    for (int i = 0; i < r_file_num; i++) {
+        sitesOnlyName[i] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
     }
-    //遍历r_file的doy
-    sscanf(sitesInfo.name[0], "%4s", sites[0]);
-    new_size++;
+
+    for (int i = 0; i < r_file_num; i++){
+        strncpy(sitesOnlyName[i], &sitesInfo.name[i][0],4);
+        sitesOnlyName[i][4] = '\0';
+    }
+
+    removeSameElementAndReturn_Char(sitesOnlyName, &sites, r_file_num, &new_size);
+
+
     for (int j = 1; j < r_file_num; j++){
         //查看doys数组中是否有与psitesInfo->doy[i]相同的元素，若有，则不做任何行为，若无，则将psitesInfo->doy[i]赋值给doys[new_size]，并且new_size加1
         int flag = 0;
@@ -1205,8 +1220,12 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
         P4 = pre_pro(&obs_temp);//对obs_temp进行预处理
 
         char sav_P4_filename[256];
+        //添加m_p4_path到sav_P4_filename
+        strcpy(sav_P4_filename, m_p4_path);
+        //添加“\\”到sav_P4_filename
+        strcat(sav_P4_filename, "\\");
         //先将site的值赋给sav_P4_filename
-        strcpy(sav_P4_filename, site);
+        strcat(sav_P4_filename, site);
         //再取doy赋给sav_P4_filename
         char doy_str_3[6];
         snprintf(doy_str_3, sizeof(doy_str_3), "%d", doy);
@@ -1260,7 +1279,6 @@ void writeObsToFile(const char* filename, Obs* obs, int p1Rows, int p2Rows, int 
     for (int i = 0; i < l2Rows; i++) {
         fwrite(obs->L2[i], sizeof(double), cols, file);
     }
-
 
     fclose(file);
 }
@@ -1843,23 +1861,27 @@ void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filenam
 }
 
 void DCB_Estimation(){
-    char** sp3_list_name; //存储了星历文件文件夹的文件名
-    int sp3_list_num = 0; //存储了星历文件文件夹的文件数量
 
-    sp3_list_num = countFilesInDirectory(s_opath);
+    //1. 先用一个函数得到一个去重的doy_diff数组
+    //2. 然后遍历这个doy_diff数组，对每一个doy，load对应的SP3文件（卫星坐标）
+    //3. 将取出的sate_xyz, sitesInfo, doy, SDCB_REF, 和order作为入参传入get_MDCB。返回量包括DCB_R, DCB_S, IONC三个估计量结果数组。
+    int* doy_diff; int doy_diff_size;
+    removeSameElementAndReturn_Int(sitesInfo.doy, &doy_diff, r_file_num, &doy_diff_size);
 
-    //为sp3_list_name分配内存
-    sp3_list_name = (char **)malloc(sp3_list_num * sizeof(char *));
-    for (int i = 0; i < sp3_list_num; i++) {
-        sp3_list_name[i] = (char *)malloc(256 * sizeof(char));
+    for (int i = 0; i < doy_diff_size; i++){
+        int doy = doy_diff[i];
+        double*** sate_xyz;
+        char* load_sp3_file_path = get_load_sp3_pathname(doy);
+        load_Sp3_From_Bin_File(&sate_xyz, 32, 2880, 3, load_sp3_file_path);
+        double* DCB_R; double* DCB_S; double* IONC;
+        int DCB_R_size = 0; int DCB_S_size = 0; int IONC_size = 0;
+        get_DCB(&DCB_R, &DCB_R_size, &DCB_S, &DCB_S_size, &IONC, &IONC_size,doy, sate_xyz, sitesInfo, sDCB_REF, order);
     }
+//    //找到P4中和对应的doy相同的，并将对应的文件名和文件数量存储到doy_p4_names和doy_p4_num中
+//    int doy_p4_num = 0;
+//    char** doy_p4_names;
+//    //find_DOY_P4_Files(&doy_p4_names, &doy_p4_num, doy);
 
-    //获取sp3_list_name
-    sp3_list_name = getFileNamesInDirectory(s_opath, sp3_list_name, sp3_list_num);
-
-    for (int i = 0; i < sp3_list_num; i++){
-
-    }
 }
 
 // 返回一个包含文件夹中文件的名称的字符串数组，注意入参是const char
@@ -1948,4 +1970,286 @@ void InsertRowInArc(int ***arc, int *n, int row, int k, int k_shift) {
     // 将原数组指针指向新数组
     *arc = tempArc;
     *n = newN; // 更新外部n的值
+}
+
+void removeSameElementAndReturn_Char(char** vector, char*** new_vector, int vector_size, int* new_size){
+    //给doys申请n个int类型的内存，并赋初值为0
+    int new_size_temp = 0;
+
+    //先申请一个跟原数组一样尺寸的数组，用于存储去重后的数组
+    char** new_vector_temp = (char **) malloc(vector_size * sizeof(char));
+    for (int i = 0; i < vector_size; i++){
+        new_vector_temp[i] = (char *) malloc(64 * sizeof(char));
+    }
+
+    //得到去重后的数组。但此时还不能直接返回，因为去重后的数组中可能有空字符串
+    strcpy(new_vector_temp[new_size_temp], vector[0]);
+    new_size_temp++;
+    for (int i = 0; i < vector_size; i++) {
+        //先判断new_vector_temp中是否已经有了vector[i]，如果有了就跳过
+        int flag = 0;
+        for (int j = 0; j < new_size_temp; j++) {
+            if (strcmp(vector[i], new_vector_temp[j]) == 0) {
+                flag = 1;
+                break;
+            }
+        }
+        //如果new_vector_temp中没有vector[i]，就将vector[i]加入new_vector_temp
+        if (flag == 0) {
+            strcpy(new_vector_temp[new_size_temp], vector[i]);
+            new_size_temp++;
+        }
+    }
+
+    //再申请一个新的数组，用于存储去掉空字符串后的数组
+    char** new_vector_temp_2 = (char **) malloc(new_size_temp * sizeof(char));
+    for (int i = 0; i < new_size_temp; i++){
+        new_vector_temp_2[i] = (char *) malloc(64 * sizeof(char));
+        strcpy(new_vector_temp_2[i], new_vector_temp[i]);
+    }
+
+    //将new_vector的指针指向new_vector_temp_2
+    *new_vector = new_vector_temp_2;
+    //修改外部new_size的值
+    *new_size = new_size_temp;
+
+//    //释放new_vector_temp的内存
+//    for (int i = 0; i < new_size_temp; i++){
+//        free(new_vector_temp[i]);
+//    }
+//    free(new_vector_temp);
+//
+//    //释放new_vector_temp_2的内存
+//    for (int i = 0; i < new_size_temp; i++){
+//        free(new_vector_temp_2[i]);
+//    }
+//    free(new_vector_temp_2);
+}
+
+void removeSameElementAndReturn_Int(int* vector, int** new_vector, int vector_size, int* new_size){
+    // 申请一个临时数组用于存储去重后的数组
+    int* new_vector_temp = (int*)malloc(vector_size * sizeof(int));
+    int new_size_temp = 0;
+
+    // 得到去重后的数组，但此时还不能直接返回，因为去重后的数组中可能有重复的元素
+    new_vector_temp[new_size_temp] = vector[0];
+    new_size_temp++;
+    for (int i = 1; i < vector_size; i++) {
+        // 先判断new_vector_temp中是否已经有了vector[i]，如果有了就跳过
+        int flag = 0;
+        for (int j = 0; j < new_size_temp; j++) {
+            if (vector[i] == new_vector_temp[j]) {
+                flag = 1;
+                break;
+            }
+        }
+        // 如果new_vector_temp中没有vector[i]，就将vector[i]加入new_vector_temp
+        if (flag == 0) {
+            new_vector_temp[new_size_temp] = vector[i];
+            new_size_temp++;
+        }
+    }
+
+    // 申请一个新的数组，用于存储去掉重复元素后的数组
+    int* new_vector_temp_2 = (int*)malloc(new_size_temp * sizeof(int));
+    memcpy(new_vector_temp_2, new_vector_temp, new_size_temp * sizeof(int));
+
+    // 将new_vector的指针指向new_vector_temp_2
+    *new_vector = new_vector_temp_2;
+    // 修改外部new_size的值
+    *new_size = new_size_temp;
+
+    // 释放内存
+    free(new_vector_temp);
+}
+
+char* get_load_sp3_pathname(int doy){
+    char* filepathname = (char *) malloc(64 * sizeof(char));
+
+    //将s_opath赋给filepathname
+    strcpy(filepathname, s_opath);
+
+    //加入"\\"
+    strcat(filepathname, "\\");
+
+    //加入"20"
+    strcat(filepathname, "20");
+
+    char doy_str[3];
+    snprintf(doy_str, sizeof(doy_str), "%d", doy);
+    strncat(filepathname, doy_str, 2);
+
+    //在字符串中添加"_"
+    strcat(filepathname, "_");
+    // 提取doy的后三位数字
+    int last_three_digits = doy % 1000;
+    // 转换后三位数字为字符串
+    char doy_str_2[4]; // 考虑到最大值为999，因此最多需要4个字符（包括终止符'\0'）
+    sprintf(doy_str_2, "%d", last_three_digits);
+    strcat(filepathname, doy_str_2);
+
+    //加入"sp3.dat"
+    strcat(filepathname, "sp3.dat");
+
+    return filepathname;
+}
+
+void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, double** IONC, int* IONC_size, int doy, double*** sate_xyz, SitesInfo sitesInfo, SDCB_REF sDCB_REF, int order) {
+    char **stations;
+    stations = (char **) malloc(r_file_num * sizeof(char *));
+    for (int i = 0; i < r_file_num; i++) {
+        stations[i] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
+    }
+
+    for (int i = 0; i < r_file_num; i++) {
+        strncpy(stations[i], &sitesInfo.name[i][0], 4);
+        stations[i][4] = '\0';
+    }
+
+    double **x = sate_xyz[0];
+    double **y = sate_xyz[1];
+    double **z = sate_xyz[2];
+
+    int n_r = 0; int n_s = 32;
+    char **P4_load_filepath = get_doy_P4_filepath(doy, &n_r);
+
+    //--check the number of each satellite's observations
+    int *PRN;
+    PRN = (int *) malloc(32 * sizeof(int));
+    for (int i = 0; i < 32; i++) {
+        PRN[i] = 0;
+    }
+
+    //为DCB_S申请内存
+    *DCB_S = (double *) malloc(32 * sizeof(double));
+
+    //计算每个PRN的所有P4值
+    for (int i = 0; i < n_r; i++) {
+        double **P4;
+        //为P4申请内存并赋初值为0
+        P4 = (double **) malloc(2880 * sizeof(double *));
+        for (int j = 0; j < 2880; j++) {
+            P4[j] = (double *) malloc(32 * sizeof(double));
+            for (int k = 0; k < 32; k++) {
+                P4[j][k] = 0;
+            }
+        }
+
+        load_P4_From_Bin_File(&P4, 2880, 32, P4_load_filepath[i]);
+
+        for (int j = 0; j < 32; j++) {
+            for (int k = 0; k < 2880; k++) {
+                if (P4[k][j] != 0) {
+                    PRN[j]++;
+                }
+            }
+        }
+    }
+
+    // 构建最小二乘估计的矩阵
+    //printf("Starting to build the matrix for the least squares estimation...\n");
+    int est_num = (order+1)*(order+1)*12+n_s+n_r;
+
+    double* C = (double *) malloc(est_num * sizeof(double));
+    //赋初值为0
+    for (int i = 0; i < est_num; i++){
+        if (i>n_r-1&&i<n_r+n_s){
+            C[i] = 1;
+        }else{
+            C[i] = 0;
+        }
+    }
+
+    double Wx = 0;
+
+    for (int i=0; i<n_r;i++){
+        double **P4;
+        //为P4申请内存并赋初值为0
+        P4 = (double **) malloc(2880 * sizeof(double *));
+        for (int j = 0; j < 2880; j++) {
+            P4[j] = (double *) malloc(32 * sizeof(double));
+            for (int k = 0; k < 32; k++) {
+                P4[j][k] = 0;
+            }
+        }
+
+        load_P4_From_Bin_File(&P4, 2880, 32, P4_load_filepath[i]);
+        //取P4_load_filepath[i]的前4个字符，赋给site
+        char site[5];
+        strncpy(site, P4_load_filepath[i], 4);
+        site[4] = '\0';
+
+        //找到stations里面同时满足site和doy的索引
+        int index = 0;
+        for (int j = 0; j < r_file_num; j++){
+            if (strcmp(stations[j], site) == 0&&sitesInfo.doy[j] == doy){
+                index = j;
+                break;
+            }
+        }
+
+        double sx = sitesInfo.coor[index][0];
+        double sy = sitesInfo.coor[index][1];
+        double sz = sitesInfo.coor[index][2];
+
+        int ith = i;
+
+
+
+    }
+
+}
+
+//找到对应doy的各个站所有P4文件
+char** get_doy_P4_filepath(int doy, int* n_r){
+    //遍历m_p4_path文件夹中的文件名，取出每个文件名的第5到第9位，转换成int，如果与doy相同，就将这个文件名存入一个字符串数组中
+    int p4_num = countFilesInDirectory(m_p4_path);
+    char** p4_file_names;
+    p4_file_names = (char **) malloc(p4_num * sizeof(char*));
+    for (int i = 0; i < p4_num; i++){
+        p4_file_names[i] = (char *) malloc(64 * sizeof(char));
+    }
+    p4_file_names = getFileNamesInDirectory(m_p4_path, p4_file_names, p4_num);
+
+    char** doy_p4_file_names;
+    //分配足够内存
+    doy_p4_file_names = (char **) malloc(p4_num * sizeof(char*));
+    for (int i = 0; i < p4_num; i++){
+        doy_p4_file_names[i] = (char *) malloc(64 * sizeof(char));
+    }
+
+    int doy_p4_num = 0;
+    for(int i = 0; i < p4_num; i++){
+        char* doy_str = (char *) malloc(64 * sizeof(char));
+        strncpy(doy_str, p4_file_names[i]+4, 5);
+        doy_str[5] = '\0';
+        int doy_temp = atoi(doy_str);
+        if (doy_temp == doy){
+            //将这个文件名存入一个字符串数组中
+            strcpy(doy_p4_file_names[doy_p4_num], p4_file_names[i]);
+            doy_p4_num++;
+        }
+    }
+
+    char** doy_p4_file_names_return;
+    doy_p4_file_names_return = (char **) malloc(doy_p4_num * sizeof(char*));
+    for (int i = 0; i < doy_p4_num; i++){
+        doy_p4_file_names_return[i] = (char *) malloc(64 * sizeof(char));
+    }
+
+    //把doy_p4_file_names中的前doy_p4_num个元素复制到doy_p4_file_names_return中
+    for (int i = 0; i < doy_p4_num; i++){
+        strcpy(doy_p4_file_names_return[i], doy_p4_file_names[i]);
+    }
+
+    //释放doy_p4_file_names的内存
+    for (int i = 0; i < doy_p4_num; i++){
+        free(doy_p4_file_names[i]);
+    }
+    free(doy_p4_file_names);
+
+    *n_r = doy_p4_num;
+
+    //return
+    return doy_p4_file_names_return;
 }
