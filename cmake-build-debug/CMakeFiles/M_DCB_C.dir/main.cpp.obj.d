@@ -67,4 +67,6 @@ CMakeFiles/M_DCB_C.dir/main.cpp.obj: D:\projects\M_DCB_C\main.cpp \
  E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/tr1/modified_bessel_func.tcc \
  E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/tr1/poly_hermite.tcc \
  E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/tr1/poly_laguerre.tcc \
- E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/tr1/riemann_zeta.tcc
+ E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/tr1/riemann_zeta.tcc \
+ E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/float.h \
+ E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/float.h

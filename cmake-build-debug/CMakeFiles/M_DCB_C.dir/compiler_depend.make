@@ -79,6 +79,7 @@ CMakeFiles/M_DCB_C.dir/main.cpp.obj: D:/projects/M_DCB_C/main.cpp \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32/bits/c++config.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32/bits/cpu_defines.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32/bits/os_defines.h \
+  E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/float.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/limits.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/mm_malloc.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/syslimits.h \
@@ -92,6 +93,7 @@ CMakeFiles/M_DCB_C.dir/main.cpp.obj: D:/projects/M_DCB_C/main.cpp \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/crtdefs.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/dirent.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/errno.h \
+  E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/float.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/io.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/limits.h \
   E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/malloc.h \
@@ -118,6 +120,8 @@ E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/
 E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/bits/std_abs.h:
 
 E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/pstl/pstl_config.h:
+
+E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/float.h:
 
 E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/stdlib.h:
 
@@ -246,5 +250,7 @@ E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/
 E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/tr1/special_function_util.h:
 
 E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/type_traits:
+
+E:/JetBrain/CLion\ 2023.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/float.h:
 
 E:/JetBrain/CLion\ 2023.3.2/bin/mingw/x86_64-w64-mingw32/include/math.h:

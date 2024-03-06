@@ -3,6 +3,8 @@
 #include <dirent.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
+#include <cmath>
 
 // 假设 SitesInfo 结构体
 typedef struct {
@@ -97,6 +99,7 @@ double norm(int n, int m);
 int factorial(int n);
 void get_Coef(double** M_col, int st, int ed, double b, double s, int order);
 void get_Matrix(double** P4, double** x, double** y, double**z, double sx, double sy, double sz, int n_s, int n_r, int ith, int order, double*** sN, double** sL);
+double* get_legendre(int n, double x);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -1890,7 +1893,7 @@ void DCB_Estimation(){
         }
 
         char* load_sp3_file_path = get_load_sp3_pathname(doy);
-        load_Sp3_From_Bin_File(&sate_xyz, 32, 2880, 3, load_sp3_file_path);
+        load_Sp3_From_Bin_File(&sate_xyz, 3, 2880, 32, load_sp3_file_path);
         double* DCB_R; double* DCB_S; double* IONC;
         int DCB_R_size = 0; int DCB_S_size = 0; int IONC_size = 0;
         get_DCB(&DCB_R, &DCB_R_size, &DCB_S, &DCB_S_size, &IONC, &IONC_size,doy, sate_xyz, sitesInfo, sDCB_REF, order);
@@ -2312,12 +2315,12 @@ void get_Matrix(double** P4, double** x, double** y, double**z, double sx, doubl
 
                 M_col[ith] = (-9.52437)*cos(IPPz);
                 M_col[n_r+j] = (-9.52437)*cos(IPPz);
-                int st = (order+1)*(order+1)*i+n_r+33;
-                int ed = (order+1)*(order+1)*(i+1)+32;
+                int st = (order+1)*(order+1)*i+n_r+32;
+                int ed = (order+1)*(order+1)*(i+1)+n_r+32;
 
-                for (int l = st; l<ed+1; l++){
-                    get_Coef(&M_col, st, ed, b, s, order);
-                }
+
+                get_Coef(&M_col, st, ed, b, s, order);
+
 
                 //把M_col添加到二维数组M的下一行
                 for (int l = 0; l < est_num; l++){
@@ -2359,7 +2362,7 @@ void get_Coef(double** M_col, int st, int ed, double b, double s, int order){
     int i = 0;
     double x = sin(b);
     for (int n = 0; n < order+1; n++){
-        double* P = legendre(n,x);
+        double* P = get_legendre(n, x);
         for (int m = 0; m<n+1; m++){
             if (m == 0){
                 cof_P[i] = P[m]*norm(n,m);
@@ -2372,16 +2375,82 @@ void get_Coef(double** M_col, int st, int ed, double b, double s, int order){
         }
     }
 
+    //把cof_P添加到M_col的st到ed的位置
+    for (int i = st; i<ed+1; i++){
+        *M_col[i] = cof_P[i-st];
+    }
+
+}
+
+double* get_legendre(int n, double x){
+    double* P = (double *) malloc(n * sizeof(double));
+    for (int i = 0; i < n+1; i++){
+        P[i] = std::assoc_legendre(n, i, x);
+    }
+
+    return P;
 }
 
 double* legendre(int n, double x){
     double* P = (double *) malloc((n+1) * sizeof(double));
-    P[0] = 1;
-    P[1] = x;
-
-    for (int i = 2; i < n+1; i++){
-        P[i] = ((2*i-1)*x*P[i-1]-(i-1)*P[i-2])/i;
+    for (int i = 0; i < n+1; i++){
+        P[i] = 0;
     }
+    int P_size = 0;
+
+    if (n==0){
+        double y = 1;
+        P[0] = y;
+        P_size++;
+    }
+
+    double* rootn;
+    rootn = (double *) malloc((2*n+1) * sizeof(double));
+    for (int i = 0; i < 2*n+1; i++){
+        rootn[i] = sqrt(i);
+    }
+
+    double s = sqrt(1-x*x);
+
+    double twocot = (-2)*x/s;
+
+    double sn = pow((-s),n);
+
+    double tol = sqrt(DBL_MIN);
+
+    if (s>0&&fabs(sn)<=tol){
+
+    }
+
+    if (x!=1&&fabs(sn)>=tol){
+        double* d = (double *) malloc(n * sizeof(double));
+        for (int i = 0; i < n; i++){
+            d[i] = 2+2*i;
+        }
+
+        double product = 1;
+        for (int i = 0; i < n; i++){
+            product = product*(1-(1/d[i]));
+        }
+
+        P[n] = sqrt(product)*sn;
+        P_size++;
+        P[n-1] = P[n]*twocot*n/rootn[2*n];
+        P_size++;
+
+        for (int m=n-2; m>=0; m--){
+            P[m] = (P[m+1]*twocot*(m+1)-P[m+2]*rootn[n+m+2]*rootn[n-m-1]/(rootn[n+m+1]*rootn[n-m]));
+            P_size++;
+        }
+    }
+
+    if (s==0){
+    }
+
+    for (int m = 0; m < n-1; m++){
+        P[m+1] = P[m+1]*rootn[2*m];//这行不确定有没有问题
+    }
+    P[n] = P[n]*rootn[2*n];
 
     return P;
 }
