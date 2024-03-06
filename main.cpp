@@ -42,6 +42,7 @@ double f1 = 1575.42e6;
 double f2 = 1227.6e6;
 double pi = 3.14159265358979323846;
 double c = 299792458;
+int period = 2;
 
 //全局变量
 SitesInfo sitesInfo;
@@ -90,6 +91,12 @@ void removeSameElementAndReturn_Int(int* vector, int** new_vector, int vector_si
 char* get_load_sp3_pathname(int doy);
 char** get_doy_P4_filepath(int doy, int* n_r);
 void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, double** IONC, int* IONC_size, int doy, double*** sate_xyz, SitesInfo sitesInfo, SDCB_REF sDCB_REF, int order);
+double* get_IPP(double E, double A, double sb, double sl, double IPPz, double t_r);
+double* legendre(int n, double x);
+double norm(int n, int m);
+int factorial(int n);
+void get_Coef(double** M_col, int st, int ed, double b, double s, int order);
+void get_Matrix(double** P4, double** x, double** y, double**z, double sx, double sy, double sz, int n_s, int n_r, int ith, int order, double*** sN, double** sL);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -1871,6 +1878,17 @@ void DCB_Estimation(){
     for (int i = 0; i < doy_diff_size; i++){
         int doy = doy_diff[i];
         double*** sate_xyz;
+        sate_xyz = (double ***)malloc(3 * sizeof(double **));
+        for (int i = 0; i < 3; i++) {
+            sate_xyz[i] = (double **)malloc(2880 * sizeof(double *));
+            for (int j = 0; j < 2880; j++) {
+                sate_xyz[i][j] = (double *)malloc(32 * sizeof(double));
+                for (int k = 0; k < 32; k++) {
+                    sate_xyz[i][j][k] = 0.0; // 初始化为零
+                }
+            }
+        }
+
         char* load_sp3_file_path = get_load_sp3_pathname(doy);
         load_Sp3_From_Bin_File(&sate_xyz, 32, 2880, 3, load_sp3_file_path);
         double* DCB_R; double* DCB_S; double* IONC;
@@ -2150,6 +2168,8 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     //printf("Starting to build the matrix for the least squares estimation...\n");
     int est_num = (order+1)*(order+1)*12+n_s+n_r;
 
+    double** B; double* l;
+
     double* C = (double *) malloc(est_num * sizeof(double));
     //赋初值为0
     for (int i = 0; i < est_num; i++){
@@ -2193,6 +2213,13 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
         double sz = sitesInfo.coor[index][2];
 
         int ith = i;
+
+        double** sN; double* sL;
+
+        get_Matrix(P4, x, y, z, sx, sy, sz, n_s, n_r, ith, order, &sN, &sL);
+
+        //把sN的结果添加进B矩阵
+        printf("hello");
 
 
 
@@ -2252,4 +2279,131 @@ char** get_doy_P4_filepath(int doy, int* n_r){
 
     //return
     return doy_p4_file_names_return;
+}
+
+void get_Matrix(double** P4, double** x, double** y, double**z, double sx, double sy, double sz, int n_s, int n_r, int ith, int order, double*** sN, double** sL){
+    double** M; double* l;
+
+    double* BL = XYZ2BLH(sx, sy, sz);
+    double sb = BL[0]; double sl = BL[1];
+
+    for (int i = 0 ;i<(24/period); i++){
+        for (int j = 0; j<32; j++){
+            for (int k=240*i; k<240*(i+1);k++) {
+                if (P4[k][j]==0){
+                    continue;
+                }
+
+                int est_num = (order+1)*(order+1)*12+n_s+n_r;
+
+                double* M_col = (double *) malloc(est_num * sizeof(double));
+                for (int l = 0; l < est_num; l++){
+                    M_col[l] = 0;
+                }
+
+                double* EA = get_EA(sx, sy, sz, x[k][j]*1000, y[k][j]*1000, z[k][j]*1000);
+                double E = EA[0]; double A = EA[1];
+
+                double IPPz = asin(6378137*sin(0.9782*(pi/2-E))/(6378137+506700));
+                double t_r = 30*k*pi/43200;
+
+                double* BS = get_IPP(E, A, sb, sl, IPPz, t_r);
+                double b = BS[0]; double s = BS[1];
+
+                M_col[ith] = (-9.52437)*cos(IPPz);
+                M_col[n_r+j] = (-9.52437)*cos(IPPz);
+                int st = (order+1)*(order+1)*i+n_r+33;
+                int ed = (order+1)*(order+1)*(i+1)+32;
+
+                for (int l = st; l<ed+1; l++){
+                    get_Coef(&M_col, st, ed, b, s, order);
+                }
+
+                //把M_col添加到二维数组M的下一行
+                for (int l = 0; l < est_num; l++){
+                    M[l][k] = M_col[l];
+                }
+
+                //把P4[k][j]*(-9.52437)*cos(IPPz)加到l中
+                l[k] = P4[k][j]*(-9.52437)*cos(IPPz);
+            }
+        }
+    }
+    //返回M和l
+    *sN = M;
+    *sL = l;
+}
+
+
+double* get_IPP(double E, double A, double sb, double sl, double IPPz, double t_r){
+    double* BS = (double *) malloc(2 * sizeof(double));
+    BS[0] = 0; BS[1] = 0;
+
+    double t = pi/2 - E - IPPz;
+    BS[0] = asin(sin(sb)*cos(t)+cos(sb)*sin(t)*cos(A));
+    BS[1] = sl + asin(sin(t)*sin(A)/cos(BS[0]));
+    BS[1] = BS[1] + t_r - pi;
+
+    return BS;
+}
+
+void get_Coef(double** M_col, int st, int ed, double b, double s, int order){
+    double* cof_P = (double *) malloc((order+1)*(order+1) * sizeof(double));
+
+    double* ms;
+    ms = (double *) malloc(order * sizeof(double));
+    for (int i = 0; i < order; i++){
+        ms[i] = s*(i+1);
+    }
+
+    int i = 0;
+    double x = sin(b);
+    for (int n = 0; n < order+1; n++){
+        double* P = legendre(n,x);
+        for (int m = 0; m<n+1; m++){
+            if (m == 0){
+                cof_P[i] = P[m]*norm(n,m);
+            }else{
+                cof_P[i] = P[m]*norm(n,m)*cos(m*ms[m-1]);
+                i++;
+                cof_P[i] = P[m]*norm(n,m)*sin(m*ms[m-1]);
+            }
+            i++;
+        }
+    }
+
+}
+
+double* legendre(int n, double x){
+    double* P = (double *) malloc((n+1) * sizeof(double));
+    P[0] = 1;
+    P[1] = x;
+
+    for (int i = 2; i < n+1; i++){
+        P[i] = ((2*i-1)*x*P[i-1]-(i-1)*P[i-2])/i;
+    }
+
+    return P;
+}
+
+double norm(int n, int m){
+    double N = 0;
+    if (m==0){
+        N = sqrt(factorial(n-m)*(2*n+1)/factorial(n+m));
+    }else{
+        N = sqrt(factorial(n-m)*(4*n+2)/factorial(n+m));
+    }
+    return N;
+}
+
+int factorial(int n) {
+    if (n < 0) {
+        // 阶乘未定义于负数
+        return 0;
+    }
+    int result = 1;
+    for (int i = 2; i <= n; ++i) {
+        result *= i;
+    }
+    return result;
 }
