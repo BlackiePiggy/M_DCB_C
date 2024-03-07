@@ -42,7 +42,7 @@ const char* s_opath = "D:\\projects\\M_DCB_C\\SP3_output_files";//
 const char* i_ipath = "D:\\projects\\M_DCB_C\\IONEX_files";// ionex
 const char* i_opath = "D:\\projects\\M_DCB_C\\IONEX_output_files";// ionex
 const char* m_p4_path = "D:\\projects\\M_DCB_C\\M_P4";// P4
-const char* m_result = "D:\\projects\\M_DCB_C\\M_Result";// result
+const char* m_result_path = "D:\\projects\\M_DCB_C\\M_Result";// result
 int lim = 10;// el
 int order = 4;// order
 int r_file_num;
@@ -113,6 +113,12 @@ void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_n
 void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size);
 double* leastSquaresSolve(double** B_data, double* L_data, int rows, int cols);
 double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L);
+double* getDCB_R(double* R, int n_r);
+double* getDCB_S(double* R, int n_r, int n_s);
+double* getIONC(double* R, int n_r, int n_s);
+void write_vector_to_file(char *filename, double* vector, int size);
+char* generate_final_result_file_pathname(int doy, const char* type, const char* m_result_path);
+
 // -----------------------------Main--------------------------------------
 int main() {
     setbuf(stdout, 0);
@@ -1883,7 +1889,6 @@ void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filenam
 }
 
 void DCB_Estimation(){
-
     //1. 先用一个函数得到一个去重的doy_diff数组
     //2. 然后遍历这个doy_diff数组，对每一个doy，load对应的SP3文件（卫星坐标）
     //3. 将取出的sate_xyz, sitesInfo, doy, SDCB_REF, 和order作为入参传入get_MDCB。返回量包括DCB_R, DCB_S, IONC三个估计量结果数组。
@@ -1909,12 +1914,17 @@ void DCB_Estimation(){
         double* DCB_R; double* DCB_S; double* IONC;
         int DCB_R_size = 0; int DCB_S_size = 0; int IONC_size = 0;
         get_DCB(&DCB_R, &DCB_R_size, &DCB_S, &DCB_S_size, &IONC, &IONC_size,doy, sate_xyz, sitesInfo, sDCB_REF, order);
-    }
-//    //找到P4中和对应的doy相同的，并将对应的文件名和文件数量存储到doy_p4_names和doy_p4_num中
-//    int doy_p4_num = 0;
-//    char** doy_p4_names;
-//    //find_DOY_P4_Files(&doy_p4_names, &doy_p4_num, doy);
 
+        printf("Saving DCB_Estimation_result to file...\n");
+
+        char* DCB_R_final_result_filename = generate_final_result_file_pathname(doy, "DCB_R", m_result_path);
+        char* DCB_S_final_result_filename = generate_final_result_file_pathname(doy, "DCB_S", m_result_path);
+        char* IONC_final_result_filename = generate_final_result_file_pathname(doy, "IONC", m_result_path);
+        write_vector_to_file(DCB_R_final_result_filename, DCB_R, DCB_R_size);
+        write_vector_to_file(DCB_S_final_result_filename, DCB_S, DCB_S_size);
+        write_vector_to_file(IONC_final_result_filename, IONC, IONC_size);
+    }
+    printf("DCB_Estimation finished.\n");
 }
 
 // 返回一个包含文件夹中文件的名称的字符串数组，注意入参是const char
@@ -2269,11 +2279,16 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     // 最小二乘估计
     double* R = leastSquaresSolveSparse(B_sparse, L_vec);
 
-//    double* DCB_R = getDCB_R(R);
-//    double* DCB_S = getDCB_S(R);
-//    double* IONC = getIONC(R);
+    double* DCB_R_temp = getDCB_R(R, n_r);
+    double* DCB_S_temp = getDCB_S(R, n_r, n_s);
+    double* IONC_temp = getIONC(R, n_r, n_s);
 
-    printf("Finished Day %d\n Estimation", doy);
+    *DCB_R = DCB_R_temp;
+    *DCB_R_size = n_r;
+    *DCB_S = DCB_S_temp;
+    *DCB_S_size = n_s;
+    *IONC = IONC_temp;
+    *IONC_size = (order+1)*(order+1)*12;
 }
 
 //找到对应doy的各个站所有P4文件
@@ -2670,4 +2685,58 @@ double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L
     }
 
     return result;
+}
+
+double* getDCB_R(double* R, int n_r){
+    double* DCB_R = (double *) malloc(n_r * sizeof(double));
+    for (int i = 0; i < n_r; i++){
+        DCB_R[i] = R[i]*10e8/c;
+    }
+    return DCB_R;
+}
+
+double* getDCB_S(double* R, int n_r, int n_s){
+    double* DCB_S = (double *) malloc(n_s * sizeof(double));
+    for (int i = 0; i < n_s; i++){
+        DCB_S[i] = R[i+n_r]*10e8/c;
+    }
+    return DCB_S;
+}
+
+double* getIONC(double* R, int n_r, int n_s){
+    double* IONC = (double *) malloc(((order+1)*(order+1)*12) * sizeof(double));
+    for (int i = 0; i < (order+1)*(order+1)*12; i++){
+        IONC[i] = R[i+n_s+n_r];
+    }
+    return IONC;
+}
+
+void write_vector_to_file(char *filename, double* vector, int size) {
+    FILE *fp = fopen(filename, "w");
+    if (fp == NULL) {
+        printf("Error opening file.\n");
+        return;
+    }
+    for (int i = 0; i < size; ++i) {
+        fprintf(fp, "%lf\n", vector[i]);
+    }
+    fclose(fp);
+}
+
+char* generate_final_result_file_pathname(int doy, const char* type, const char* m_result_path){
+    char* pathname = (char *) malloc(128 * sizeof(char));
+    //添加m_result_path
+    strcpy(pathname, m_result_path);
+    //添加"\\"
+    strcat(pathname, "\\");
+    //添加type
+    strcat(pathname, type);
+    //添加doy
+    char doy_str[3];
+    snprintf(doy_str, sizeof(doy_str), "%d", doy);
+    strncat(pathname, doy_str, 2);
+    //添加".txt"
+    strcat(pathname, ".txt");
+
+    return pathname;
 }
