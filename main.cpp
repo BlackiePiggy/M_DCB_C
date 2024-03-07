@@ -5,6 +5,13 @@
 #include <math.h>
 #include <float.h>
 #include <cmath>
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
+#include <Eigen/SparseQR>
+#include <iostream>
+
+using namespace Eigen;
+using namespace std;
 
 // 假设 SitesInfo 结构体
 typedef struct {
@@ -104,7 +111,8 @@ void addRowTo2DMatrixNewLine(double ***M, double **M_sol, int *numRows, int numC
 void appendDoubleToVector(double **arr, int *size, double value);
 void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int* l_row_number, int sN_row_number);
 void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size);
-
+double* leastSquaresSolve(double** B_data, double* L_data, int rows, int cols);
+double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L);
 // -----------------------------Main--------------------------------------
 int main() {
     setbuf(stdout, 0);
@@ -2208,12 +2216,12 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
 
         //找到stations里面同时满足site和doy的索引
         int index = 0;
-        for (int j = 0; j < r_file_num; j++){
-            if (strcmp(stations[j], site) == 0&&sitesInfo.doy[j] == doy){
-                index = j;
-                break;
-            }
-        }
+//        for (int j = 0; j < r_file_num; j++){
+//            if (strcmp(stations[j], site) == 0&&sitesInfo.doy[j] == doy){
+//                index = j;
+//                break;
+//            }
+//        }
 
         double sx = sitesInfo.coor[index][0];
         double sy = sitesInfo.coor[index][1];
@@ -2230,7 +2238,42 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
         addMartixDownToAnother(&B, &sN, est_num, &B_row_number, &l_row_number, sN_row_number);
         addVectorToVector(&l, &sL, &l_row_number, sL_number);
     }
-    printf("heloo");
+
+
+    // 添加零均值条件
+    addRowTo2DMatrixNewLine(&B, &C, &B_row_number, est_num);
+    appendDoubleToVector(&l, &l_row_number, Wx);
+
+    // 转换成稀疏矩阵，并记录非零元素的数量
+    int dense_num = 0;
+    // 使用vector收集非零元素的triplets
+    vector<Triplet<double>> tripletList;
+    // 遍历密集矩阵以填充triplets
+    for (int i = 0; i < B_row_number; ++i) {
+        for (int j = 0; j < est_num; ++j) {
+            double value = B[i][j];
+            if (value != 0) { // 仅处理非零元素
+                tripletList.push_back(Triplet<double>(i, j, value));
+                dense_num++;
+            }
+        }
+    }
+
+    // 创建一个空的稀疏矩阵并使用triplets初始化
+    SparseMatrix<double> B_sparse(B_row_number, est_num);
+    B_sparse.setFromTriplets(tripletList.begin(), tripletList.end());
+
+    // L转换为Eigen格式
+    VectorXd L_vec = Map<VectorXd>(l, l_row_number);
+
+    // 最小二乘估计
+    double* R = leastSquaresSolveSparse(B_sparse, L_vec);
+
+//    double* DCB_R = getDCB_R(R);
+//    double* DCB_S = getDCB_S(R);
+//    double* IONC = getIONC(R);
+
+    printf("Finished Day %d\n Estimation", doy);
 }
 
 //找到对应doy的各个站所有P4文件
@@ -2578,4 +2621,53 @@ void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size){
     for (int i = 0; i < sL_size; i++){
         (*l)[(*l_row_number) - sL_size + i] = (*sL)[i];
     }
+}
+
+double* leastSquaresSolve(double** B_data, double* L_data, int rows, int cols) {
+    // 将二维数组B_data和一维数组L_data转换为Eigen的矩阵和向量
+    MatrixXd B(rows, cols);
+    VectorXd L(rows);
+    for (int i = 0; i < rows; ++i) {
+        L(i) = L_data[i];
+        for (int j = 0; j < cols; ++j) {
+            B(i, j) = B_data[i][j];
+        }
+    }
+
+    // 使用Eigen的JacobiSVD类进行最小二乘求解
+    VectorXd R = B.jacobiSvd(ComputeThinU | ComputeThinV).solve(L);
+
+    // 将结果向量R转换回动态分配的double数组
+    double* result = new double[cols];
+    for (int i = 0; i < cols; ++i) {
+        result[i] = R(i);
+    }
+
+    return result;
+}
+
+double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L) {
+    // 确保B和L的维度匹配
+    if (B.rows() != L.size()) {
+        std::cerr << "Dimension mismatch." << std::endl;
+        return nullptr;
+    }
+
+    // 使用SparseQR求解器来解决最小二乘问题
+    SparseQR<SparseMatrix<double>, COLAMDOrdering<int>> solver;
+    solver.compute(B);  //这句耗费时间太长
+    if(solver.info() != Success) {
+        // 解决方案计算失败
+        std::cerr << "Solver failed to decompose the matrix." << std::endl;
+        return nullptr;
+    }
+    VectorXd R = solver.solve(L);
+
+    // 将结果向量R转换回动态分配的double数组
+    double* result = new double[B.cols()];
+    for (int i = 0; i < B.cols(); ++i) {
+        result[i] = R[i];
+    }
+
+    return result;
 }

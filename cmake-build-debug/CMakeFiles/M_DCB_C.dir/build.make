@@ -69,6 +69,7 @@ include CMakeFiles/M_DCB_C.dir/progress.make
 include CMakeFiles/M_DCB_C.dir/flags.make
 
 CMakeFiles/M_DCB_C.dir/main.cpp.obj: CMakeFiles/M_DCB_C.dir/flags.make
+CMakeFiles/M_DCB_C.dir/main.cpp.obj: CMakeFiles/M_DCB_C.dir/includes_CXX.rsp
 CMakeFiles/M_DCB_C.dir/main.cpp.obj: D:/projects/M_DCB_C/main.cpp
 CMakeFiles/M_DCB_C.dir/main.cpp.obj: CMakeFiles/M_DCB_C.dir/compiler_depend.ts
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\projects\M_DCB_C\cmake-build-debug\CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/M_DCB_C.dir/main.cpp.obj"
@@ -83,6 +84,7 @@ CMakeFiles/M_DCB_C.dir/main.cpp.s: cmake_force
 	"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\projects\M_DCB_C\main.cpp -o CMakeFiles\M_DCB_C.dir\main.cpp.s
 
 CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: CMakeFiles/M_DCB_C.dir/flags.make
+CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: CMakeFiles/M_DCB_C.dir/includes_CXX.rsp
 CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: D:/projects/M_DCB_C/ReadFile.cpp
 CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: CMakeFiles/M_DCB_C.dir/compiler_depend.ts
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\projects\M_DCB_C\cmake-build-debug\CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj"
