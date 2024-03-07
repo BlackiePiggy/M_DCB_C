@@ -96,10 +96,14 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
 double* get_IPP(double E, double A, double sb, double sl, double IPPz, double t_r);
 double* legendre(int n, double x);
 double norm(int n, int m);
-int factorial(int n);
+double factorial(int n);
 void get_Coef(double** M_col, int st, int ed, double b, double s, int order);
-void get_Matrix(double** P4, double** x, double** y, double**z, double sx, double sy, double sz, int n_s, int n_r, int ith, int order, double*** sN, double** sL);
+void get_Matrix(double** P4, double** x, double** y, double**z, double sx, double sy, double sz, int n_s, int n_r, int ith, int order, double*** sN, double** sL, int est_num, int* M_row_number, int* l_size_number);
 double* get_legendre(int n, double x);
+void addRowTo2DMatrixNewLine(double ***M, double **M_sol, int *numRows, int numCols);
+void appendDoubleToVector(double **arr, int *size, double value);
+void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int* l_row_number, int sN_row_number);
+void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -2171,7 +2175,7 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     //printf("Starting to build the matrix for the least squares estimation...\n");
     int est_num = (order+1)*(order+1)*12+n_s+n_r;
 
-    double** B; double* l;
+    double** B = NULL; double* l = NULL;
 
     double* C = (double *) malloc(est_num * sizeof(double));
     //赋初值为0
@@ -2183,7 +2187,7 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
         }
     }
 
-    double Wx = 0;
+    double Wx = 0; int B_row_number = 0; int l_row_number = 0;
 
     for (int i=0; i<n_r;i++){
         double **P4;
@@ -2219,15 +2223,14 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
 
         double** sN; double* sL;
 
-        get_Matrix(P4, x, y, z, sx, sy, sz, n_s, n_r, ith, order, &sN, &sL);
+        int sN_row_number = 0; int sL_number = 0;
+        get_Matrix(P4, x, y, z, sx, sy, sz, n_s, n_r, ith, order, &sN, &sL, est_num, &sN_row_number, &sL_number);
 
-        //把sN的结果添加进B矩阵
-        printf("hello");
-
-
-
+        //把sN(n*337二维)的结果纵向添加进B矩阵(m*337二维)，得到((m+n)*337)的矩阵
+        addMartixDownToAnother(&B, &sN, est_num, &B_row_number, &l_row_number, sN_row_number);
+        addVectorToVector(&l, &sL, &l_row_number, sL_number);
     }
-
+    printf("heloo");
 }
 
 //找到对应doy的各个站所有P4文件
@@ -2284,8 +2287,17 @@ char** get_doy_P4_filepath(int doy, int* n_r){
     return doy_p4_file_names_return;
 }
 
-void get_Matrix(double** P4, double** x, double** y, double**z, double sx, double sy, double sz, int n_s, int n_r, int ith, int order, double*** sN, double** sL){
-    double** M; double* l;
+void get_Matrix(double** P4, double** x, double** y, double**z, double sx, double sy, double sz, int n_s, int n_r, int ith, int order, double*** sN, double** sL, int est_num, int* M_row_number, int* l_size_number){
+    double** M = NULL ; double* l = NULL; int l_size = 0;
+    //给M分配1行337列的内存
+    int M_row_num = 0; int M_col_num = est_num;
+//    M = (double **) malloc(M_row_num * sizeof(double *));
+//    for (int i = 0; i < M_row_num; i++) {
+//        M[i] = (double *) malloc(M_col_num * sizeof(double));
+//        for (int j = 0; j < 337; j++) {
+//            M[i][j] = 0.0; // 初始化为零
+//        }
+//    }
 
     double* BL = XYZ2BLH(sx, sy, sz);
     double sb = BL[0]; double sl = BL[1];
@@ -2301,7 +2313,7 @@ void get_Matrix(double** P4, double** x, double** y, double**z, double sx, doubl
 
                 double* M_col = (double *) malloc(est_num * sizeof(double));
                 for (int l = 0; l < est_num; l++){
-                    M_col[l] = 0;
+                    M_col[l] = 0.0;
                 }
 
                 double* EA = get_EA(sx, sy, sz, x[k][j]*1000, y[k][j]*1000, z[k][j]*1000);
@@ -2323,15 +2335,16 @@ void get_Matrix(double** P4, double** x, double** y, double**z, double sx, doubl
 
 
                 //把M_col添加到二维数组M的下一行
-                for (int l = 0; l < est_num; l++){
-                    M[l][k] = M_col[l];
-                }
+                addRowTo2DMatrixNewLine(&M, &M_col, &M_row_num, M_col_num);
 
                 //把P4[k][j]*(-9.52437)*cos(IPPz)加到l中
-                l[k] = P4[k][j]*(-9.52437)*cos(IPPz);
+                appendDoubleToVector(&l, &l_size, P4[k][j]*(-9.52437)*cos(IPPz));
             }
         }
     }
+    //返回M的行数和l的个数
+    *M_row_number = M_row_num;
+    *l_size_number = l_size;
     //返回M和l
     *sN = M;
     *sL = l;
@@ -2359,25 +2372,28 @@ void get_Coef(double** M_col, int st, int ed, double b, double s, int order){
         ms[i] = s*(i+1);
     }
 
-    int i = 0;
+    int i = 0; double N = 0;
     double x = sin(b);
     for (int n = 0; n < order+1; n++){
         double* P = get_legendre(n, x);
         for (int m = 0; m<n+1; m++){
             if (m == 0){
-                cof_P[i] = P[m]*norm(n,m);
+                N = norm(n,m);
+                cof_P[i] = P[m]*N;
             }else{
-                cof_P[i] = P[m]*norm(n,m)*cos(m*ms[m-1]);
+                N = norm(n,m);
+                cof_P[i] = P[m]*N*cos(ms[m-1]);
                 i++;
-                cof_P[i] = P[m]*norm(n,m)*sin(m*ms[m-1]);
+                N = norm(n,m);
+                cof_P[i] = P[m]*N*sin(ms[m-1]);
             }
             i++;
         }
     }
 
     //把cof_P添加到M_col的st到ed的位置
-    for (int i = st; i<ed+1; i++){
-        *M_col[i] = cof_P[i-st];
+    for (int i = st; i<ed; i++){
+        (*M_col)[i] = cof_P[i-st];
     }
 
 }
@@ -2385,7 +2401,12 @@ void get_Coef(double** M_col, int st, int ed, double b, double s, int order){
 double* get_legendre(int n, double x){
     double* P = (double *) malloc(n * sizeof(double));
     for (int i = 0; i < n+1; i++){
-        P[i] = std::assoc_legendre(n, i, x);
+        //如果i为奇数
+        if (i%2 == 1) {
+            P[i] = -(std::assoc_legendre(n, i, x));
+        }else{
+            P[i] = std::assoc_legendre(n, i, x);
+        }
     }
 
     return P;
@@ -2465,7 +2486,7 @@ double norm(int n, int m){
     return N;
 }
 
-int factorial(int n) {
+double factorial(int n) {
     if (n < 0) {
         // 阶乘未定义于负数
         return 0;
@@ -2475,4 +2496,86 @@ int factorial(int n) {
         result *= i;
     }
     return result;
+}
+
+// 添加新行到M
+void addRowTo2DMatrixNewLine(double ***M, double **M_sol, int *numRows, int numCols) {
+    // 增加行数
+    (*numRows)++;
+
+    // 重新分配内存
+    *M = (double **)realloc(*M, (*numRows) * sizeof(double *));
+    if (*M == NULL) {
+        printf("内存分配失败\n");
+        exit(1);
+    }
+
+    // 分配每行的内存
+    (*M)[*numRows - 1] = (double *)malloc(numCols * sizeof(double));
+    if ((*M)[*numRows - 1] == NULL) {
+        printf("内存分配失败\n");
+        exit(1);
+    }
+
+    // 将新的一维数组添加到M中
+    (*M)[*numRows - 1] = *M_sol;
+}
+
+// 向一维数组尾部添加一个double元素
+void appendDoubleToVector(double **arr, int *size, double value) {
+    // 增加数组大小
+    (*size)++;
+
+    // 重新分配内存
+    *arr = (double *)realloc(*arr, (*size) * sizeof(double));
+    if (*arr == NULL) {
+        printf("内存分配失败\n");
+        exit(1);
+    }
+
+    // 将值添加到数组尾部
+    (*arr)[(*size) - 1] = value;
+}
+
+void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int* l_row_number, int sN_row_number){
+    // 增加行数
+    (*B_row_number) += sN_row_number;
+
+    // 重新分配内存
+    *B = (double **)realloc(*B, (*B_row_number) * sizeof(double *));
+    if (*B == NULL) {
+        printf("内存分配失败\n");
+        exit(1);
+    }
+
+    // 分配每行的内存
+    for (int i = 0; i < sN_row_number; i++){
+        (*B)[*B_row_number - sN_row_number + i] = (double *)malloc(est_num * sizeof(double));
+        if ((*B)[*B_row_number - sN_row_number + i] == NULL) {
+            printf("内存分配失败\n");
+            exit(1);
+        }
+    }
+
+    // 将新的二维数组添加到B中
+    for (int i = 0; i < sN_row_number; i++){
+        (*B)[*B_row_number - sN_row_number + i] = (*sN)[i];
+    }
+}
+
+void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size){
+    // 增加行数
+    (*l_row_number) += sL_size;
+
+    // 重新分配内存
+    *l = (double *)realloc(*l, (*l_row_number) * sizeof(double));
+    if (*l == NULL) {
+        printf("内存分配失败\n");
+        exit(1);
+    }
+
+    // 将新的一维数组添加到l中
+    for (int i = 0; i < sL_size; i++){
+        (*l)[(*l_row_number) - sL_size + i] = (*sL)[i];
+    }
 }
