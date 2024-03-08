@@ -85,7 +85,6 @@ double* get_EA(double sx, double sy, double sz, double x, double y, double z);
 void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, double lim);
 double** pre_pro(Obs* obs_temp);
 int** Get_arc(double** L6, int prn,int* parc_n);
-int** removeRows(int** arc, int n, int* arc_d, int d_size, int* new_size);
 void deleteRowAndReplace(int ***arc, int *n, int row);
 double mean(double** array, int start, int end, int prn);
 void save_P4_To_Bin_File(double **P4, int dim1, int dim2, const char *filename);
@@ -121,6 +120,8 @@ void malloc_Double_2D(double*** array, int row, int col);
 void malloc_Double_Vector(double** vector, int size);
 void malloc_Char_Vector(char*** vector, int size, int string_size);
 void malloc_Int_Vector(int** vector, int size);
+void malloc_double_3D(double**** array, int dim1, int dim2, int dim3);
+void malloc_Int_2D(int*** array, int row, int col);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -172,40 +173,10 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
     malloc_Double_Vector(&psitesInfo->RDCB_REF, r_file_num);
 
     //为obs结构体内的数组分配内存，每个变量均需要一个(2880,32)尺寸的二维double数组
-    // 分配内存空间给 P1
-    pobs->P1 = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        pobs->P1[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            pobs->P1[i][j] = 0.0; // 初始化为零
-        }
-    }
-    // 分配内存空间给 P2
-    pobs->P2 = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        pobs->P2[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            pobs->P2[i][j] = 0.0; // 初始化为零
-        }
-    }
-
-    // 分配内存空间给 L1
-    pobs->L1 = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        pobs->L1[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            pobs->L1[i][j] = 0.0; // 初始化为零
-        }
-    }
-
-    // 分配内存空间给 L2
-    pobs->L2 = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        pobs->L2[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            pobs->L2[i][j] = 0.0; // 初始化为零
-        }
-    }
+    malloc_Double_2D(&pobs->P1, 2880, 32);  // 分配内存空间给 P1
+    malloc_Double_2D(&pobs->P2, 2880, 32); // 分配内存空间给 P2
+    malloc_Double_2D(&pobs->L1, 2880, 32); // 分配内存空间给 L1
+    malloc_Double_2D(&pobs->L2, 2880, 32); // 分配内存空间给 L2
 
     int index = 0;
     int i = 0;
@@ -273,10 +244,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         printf("obst_n > 9!!!!!");
                     }
                     else{
-                        obst = (char **) malloc(obst_n * sizeof(char *));
-                        for (int j = 0; j < obst_n; j++) {
-                            obst[j] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
-                        }
+                        malloc_Char_Vector(&obst, obst_n, 4);
                         int offset = 10;
                         for (int j = 0; j < obst_n; j++){
                             if (sscanf(line + offset, "%2s", obst[j]) == 1) {
@@ -289,7 +257,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                             }
                         }
 
-                        loc = (int *) malloc(obst_n * sizeof(int));
+                        malloc_Int_Vector(&loc, obst_n);
                         for (int j = 0; j < obst_n; j++){
                             //比较obst[j]和"L1"字符串是否相同，如果相同，则给loc[0]赋值为j
                             if (strcmp(obst[j], "L1") == 0){
@@ -329,10 +297,6 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         if (sscanf(line + 16, "%10lf", &s) == 1){
                         }
                         ep = h*120 + m*2 + s/30 + 1;
-
-//                        if (ep == 17){
-//                            printf("ep: %d\n", ep);
-//                        }
                     }else{
                         continue;
                     }
@@ -344,10 +308,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                     if (sscanf(line + 30, "%2d", &nsat) == 1){
                     }
                     //给sv_G申请nsat个int类型的内存，并将数组中每个值赋值为0
-                    sv_G = (int *) malloc(nsat * sizeof(int));
-                    for (int j = 0; j < nsat; j++){
-                        sv_G[j] = 0;
-                    }
+                    malloc_Int_Vector(&sv_G, nsat);
                     if (nsat>12){
                         for(int j = 0; j < 12; j++){
                             if (line[29+3*(j+1)] == 'G'){
@@ -381,11 +342,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         fgets(line, sizeof(line), file);
 
                         double *obs_temp;
-                        obs_temp = (double *) malloc(obst_n * sizeof(double));
-                        //给obs_temp都赋初值为0
-                        for (int k = 0; k < obst_n; k++){
-                            obs_temp[k] = 0;
-                        }
+                        malloc_Double_Vector(&obs_temp, obst_n);
 
                         if (obst_n>5){
                             if (sv_G[j] == 0){
@@ -555,46 +512,10 @@ void read_sp3(const char* s_ipath, const char* s_opath){
         //读取pre_file_name sp3文件的x,y,z坐标
         //定义一个一维double数组pre_xyz，长度为3，并赋初值为0
         double ***pre_xyz; double ***cur_xyz; double ***next_xyz; double ***sate_xyz;
-        pre_xyz = (double ***)malloc(3 * sizeof(double **));
-        cur_xyz = (double ***)malloc(3 * sizeof(double **));
-        next_xyz = (double ***)malloc(3 * sizeof(double **));
-        sate_xyz = (double ***)malloc(3 * sizeof(double **));
-        for (int i = 0; i < 3; i++) {
-            pre_xyz[i] = (double **)malloc(96 * sizeof(double *));
-            for (int j = 0; j < 96; j++) {
-                pre_xyz[i][j] = (double *)malloc(32 * sizeof(double));
-                for (int k = 0; k < 32; k++) {
-                    pre_xyz[i][j][k] = 0.0; // 初始化为零
-                }
-            }
-        }
-        for (int i = 0; i < 3; i++) {
-            cur_xyz[i] = (double **)malloc(96 * sizeof(double *));
-            for (int j = 0; j < 96; j++) {
-                cur_xyz[i][j] = (double *)malloc(32 * sizeof(double));
-                for (int k = 0; k < 32; k++) {
-                    cur_xyz[i][j][k] = 0.0; // 初始化为零
-                }
-            }
-        }
-        for (int i = 0; i < 3; i++) {
-            next_xyz[i] = (double **)malloc(96 * sizeof(double *));
-            for (int j = 0; j < 96; j++) {
-                next_xyz[i][j] = (double *)malloc(32 * sizeof(double));
-                for (int k = 0; k < 32; k++) {
-                    next_xyz[i][j][k] = 0.0; // 初始化为零
-                }
-            }
-        }
-        for (int i = 0; i < 3; i++) {
-            sate_xyz[i] = (double **)malloc(2880 * sizeof(double *));
-            for (int j = 0; j < 2880; j++) {
-                sate_xyz[i][j] = (double *)malloc(32 * sizeof(double));
-                for (int k = 0; k < 32; k++) {
-                    sate_xyz[i][j][k] = 0.0; // 初始化为零
-                }
-            }
-        }
+        malloc_double_3D(&pre_xyz, 3, 96, 32);
+        malloc_double_3D(&cur_xyz, 3, 96, 32);
+        malloc_double_3D(&next_xyz, 3, 96, 32);
+        malloc_double_3D(&sate_xyz, 3, 2880, 32);
 
         //pre_xyz[][][],第一个[]代表x,y,z坐标，第二个[]代表行（时间），第三个[]代表列（卫星编号）
         parse_sp3(pre_file_name, pre_xyz);
@@ -631,10 +552,8 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
     int new_size = 0;
     int* doys; //去重的DOY存放在doys数组中，大小为new_size
     //给doys申请n个int类型的内存，并赋初值为0
-    doys = (int *) malloc(n * sizeof(int));
-    for (int i = 0; i < n; i++){
-        doys[i] = 0;
-    }
+    malloc_Int_Vector(&doys, n);
+
     //遍历r_file的doy
     doys[0] = psitesInfo->doy[0];
     new_size++;
@@ -654,52 +573,33 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
     }
 
     //为sdcb_ref结构体内的数组分配内存,value需要((new_size)*32)的尺寸
-    sdcb_ref.value = (double **)malloc((new_size) * sizeof(double *));
-    for (int i = 0; i < new_size; i++) {
-        sdcb_ref.value[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            sdcb_ref.value[i][j] = 0.0; // 初始化为零
-        }
-    }
-    //为sdcb_ref结构体内的数组分配内存,doy需要(new_size+1)的尺寸,并赋初值为0
-    sdcb_ref.doy = (int *)malloc((new_size) * sizeof(int));
-    for (int i = 0; i < new_size; i++){
-        sdcb_ref.doy[i] = 0;
-    }
+    malloc_Double_2D(&sdcb_ref.value, new_size, 32);
+    malloc_Int_Vector(&sdcb_ref.doy, new_size);
 
     char** ionex_filenames; int ionex_file_num = 0;
 
     ionex_file_num = countFilesInDirectory(i_ipath);
 
     //给ionex_filenames申请ionex_file_num个char*类型的内存,每个char不超过32个字符
-    ionex_filenames = (char **) malloc((ionex_file_num) * sizeof(char *));
-    for (int i = 0; i < ionex_file_num; i++) {
-        ionex_filenames[i] = (char *) malloc(32 * sizeof(char)); // 假设每个观测量最大长度为32
-    }
+    malloc_Char_Vector(&ionex_filenames, ionex_file_num, 32);
 
     get_filenames(i_ipath, ionex_filenames,ionex_file_num);
 
     //为DCB_rec分配内存, 大小为ionex_file_num
-    DCB_rec = (double *)malloc(ionex_file_num * sizeof(double));
+    malloc_Double_Vector(&DCB_rec, ionex_file_num);
 
     //开始读文件
     for (int i= 0; i < new_size; i++){
         int index = 0; int *index2; int doy_num;
         char** sites_name;
 
-        index2 = (int *) malloc(r_file_num * sizeof(int));
-        for (int i = 0; i < r_file_num; i++){
-            index2[i] = 0;
-        }
+        malloc_Int_Vector(&index2, r_file_num);
 
         index = find_ionex_index(doys[i]);
         doy_num = find_rinex_indexs(index2, doys[i]); //在rinex文件列表中找到所有和doy[i]相等的索引号
 
         //给sites_name申请doy_num个char*类型的内存,每个char不超过4个字符
-        sites_name = (char **) malloc(doy_num * sizeof(char *));
-        for (int j = 0; j < doy_num; j++) {
-            sites_name[j] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
-        }
+        malloc_Char_Vector(&sites_name, doy_num, 4);
 
         //取出sites_name的值
         for (int j = 0; j < doy_num; j++){
@@ -811,16 +711,7 @@ void parse_sp3(char* sp3_file, double ***xyz){
 
 void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***sate_xyz){
     double ***cur_xyz_etd;
-    cur_xyz_etd = (double ***)malloc(3 * sizeof(double **));
-    for (int i = 0; i < 3; i++) {
-        cur_xyz_etd[i] = (double **)malloc(105 * sizeof(double *));
-        for (int j = 0; j < 105; j++) {
-            cur_xyz_etd[i][j] = (double *)malloc(32 * sizeof(double));
-            for (int k = 0; k < 32; k++) {
-                cur_xyz_etd[i][j][k] = 0.0; // 初始化为零
-            }
-        }
-    }
+    malloc_double_3D(&cur_xyz_etd, 3, 105, 32);
 
     extend_matrix(0, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//x_extend
     extend_matrix(1, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//y_extend
@@ -902,7 +793,8 @@ void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double *
 double* interp_lag(double* x, double* y, double* x0) {
     int n = 10; // 假设x中有10个点
     int n0 = 30;
-    double* y0 = (double*)malloc(n0 * sizeof(double)); // 动态分配返回数组
+    double* y0;
+    malloc_Double_Vector(&y0, n0);
     if (y0 == NULL) { // 检查内存分配是否成功
         printf("Memory allocation failed.\n");
         return NULL;
@@ -925,7 +817,8 @@ double* interp_lag(double* x, double* y, double* x0) {
 }
 
 int* GWeek_2_DOY(int G_Week, int Day_of_Week){
-    int *DOY = (int *) malloc(2 * sizeof(int));
+    int *DOY;
+    malloc_Int_Vector(&DOY, 2);
     int doy = 0;
     int year = 1980;
     int n=0;
@@ -1116,10 +1009,7 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
 
     //通过一个函数得到一个只包含sitesInfo.name中前四位（site名称）的数组siteOnlyName，大小和sitesInfo.name一样
     char** sitesOnlyName;
-    sitesOnlyName = (char **) malloc(r_file_num * sizeof(char *));
-    for (int i = 0; i < r_file_num; i++) {
-        sitesOnlyName[i] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
-    }
+    malloc_Char_Vector(&sitesOnlyName, r_file_num, 4);
 
     for (int i = 0; i < r_file_num; i++){
         strncpy(sitesOnlyName[i], &sitesInfo.name[i][0],4);
@@ -1208,28 +1098,14 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
 
         //读取sp3文件
         double ***sate_xyz;
-        sate_xyz = (double ***)malloc(3 * sizeof(double **));
-        for (int j = 0; j < 3; j++) {
-            sate_xyz[j] = (double **)malloc(2880 * sizeof(double *));
-            for (int k = 0; k < 2880; k++) {
-                sate_xyz[j][k] = (double *)malloc(32 * sizeof(double));
-                for (int l = 0; l < 32; l++) {
-                    sate_xyz[j][k][l] = 0.0; // 初始化为零
-                }
-            }
-        }
+        malloc_double_3D(&sate_xyz, 3, 2880, 32);
 
         load_Sp3_From_Bin_File(&sate_xyz, 3, 2880, 32, sp3_load_file_path);
 
         cutobs(&obs_temp, sate_xyz, sx, sy, sz, z_threshold);//筛选后的obs值存在obs_temp中
 
-        double** P4 = (double **)malloc(2880 * sizeof(double *));
-        for (int i = 0; i < 2880; i++) {
-            P4[i] = (double *)malloc(32 * sizeof(double));
-            for (int j = 0; j < 32; j++) {
-                P4[i][j] = 0.0; // 初始化为零
-            }
-        }
+        double** P4;
+        malloc_Double_2D(&P4, 2880, 32);
 
         P4 = pre_pro(&obs_temp);//对obs_temp进行预处理
 
@@ -1314,27 +1190,10 @@ void readObsFromFile(const char* filename, Obs* obs) {
     // 根据读取的行列数分配内存和读取数据
     // 注意处理内存分配失败的情况
     // 以下代码为伪代码，需要根据实际情况调整
-    obs->P1 = (double**)malloc(p1Rows * sizeof(double*));
-    for (int i = 0; i < p1Rows; i++) {
-        obs->P1[i] = (double*)malloc(cols * sizeof(double));
-        fread(obs->P1[i], sizeof(double), cols, file);
-    }
-    // 重复上述过程读取P2, L1, L2
-    obs->P2 = (double**)malloc(p2Rows * sizeof(double*));
-    for (int i = 0; i < p2Rows; i++) {
-        obs->P2[i] = (double*)malloc(cols * sizeof(double));
-        fread(obs->P2[i], sizeof(double), cols, file);
-    }
-    obs->L1 = (double**)malloc(l1Rows * sizeof(double*));
-    for (int i = 0; i < l1Rows; i++) {
-        obs->L1[i] = (double*)malloc(cols * sizeof(double));
-        fread(obs->L1[i], sizeof(double), cols, file);
-    }
-    obs->L2 = (double**)malloc(l2Rows * sizeof(double*));
-    for (int i = 0; i < l2Rows; i++) {
-        obs->L2[i] = (double*)malloc(cols * sizeof(double));
-        fread(obs->L2[i], sizeof(double), cols, file);
-    }
+    malloc_Double_2D(&(obs->P1), p1Rows, cols);
+    malloc_Double_2D(&(obs->P2), p2Rows, cols);
+    malloc_Double_2D(&(obs->L1), l1Rows, cols);
+    malloc_Double_2D(&(obs->L2), l2Rows, cols);
 
     fclose(file);
 }
@@ -1400,7 +1259,7 @@ void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, 
 }
 
 double* get_EA(double sx, double sy, double sz, double x, double y, double z){
-    double* EA = (double *) malloc(2 * sizeof(double));
+    double* EA; malloc_Double_Vector(&EA, 2);
     double el = 0; double aaa = 0; double SB = 0; double SL = 0;
     double deta_xyz[3]; double* BLH;
     double NEU[3] = {0, 0, 0};
@@ -1450,7 +1309,7 @@ double* get_EA(double sx, double sy, double sz, double x, double y, double z){
 }
 
 double* XYZ2BLH(double x, double y, double z){
-    double* BLH = (double *) malloc(3 * sizeof(double));
+    double* BLH; malloc_Double_Vector(&BLH, 3);
     double B = 0; double B0 = 0; double L = 0; double H = 0; double N = 0;
 
     double a = 6378137.0;
@@ -1491,45 +1350,13 @@ double* XYZ2BLH(double x, double y, double z){
 }
 
 double** pre_pro(Obs* obs_temp){
-    double** L6 = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        L6[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            L6[i][j] = 0.0; // 初始化为零
-        }
-    }
 
-    double** Li = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        Li[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            Li[i][j] = 0.0; // 初始化为零
-        }
-    }
-
-    double** Nw = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        Nw[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            Nw[i][j] = 0.0; // 初始化为零
-        }
-    }
-
-    double** P4 = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        P4[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            P4[i][j] = 0.0; // 初始化为零
-        }
-    }
-
-    double** L4 = (double **)malloc(2880 * sizeof(double *));
-    for (int i = 0; i < 2880; i++) {
-        L4[i] = (double *)malloc(32 * sizeof(double));
-        for (int j = 0; j < 32; j++) {
-            L4[i][j] = 0.0; // 初始化为零
-        }
-    }
+    double** L6; double** Li; double** Nw; double** P4; double** L4;
+    malloc_Double_2D(&L6, 2880, 32);
+    malloc_Double_2D(&Li, 2880, 32);
+    malloc_Double_2D(&Nw, 2880, 32);
+    malloc_Double_2D(&P4, 2880, 32);
+    malloc_Double_2D(&L4, 2880, 32);
 
     // Wide Lane Wavelength
     double lambda_w = c/(f1-f2);
@@ -1562,7 +1389,7 @@ double** pre_pro(Obs* obs_temp){
 
         //----delete arc less than 10 epoches-------
         int* arc_d; int num_of_arc_d = 0;
-        arc_d = (int *) malloc(arc_n * sizeof(int));//用于记录epoch<10在arc_n中的索引
+        malloc_Int_Vector(&arc_d, arc_n);
 
         for (int j = 0; j < arc_n; j++){
             int n_epoch = arc[j][1] - arc[j][0];
@@ -1618,9 +1445,11 @@ double** pre_pro(Obs* obs_temp){
                 continue;
             }
 
-            double* ave_N = (double *) malloc((arc[j][1] - arc[j][0] + 1) * sizeof(double));
-            double* sigma = (double *) malloc((arc[j][1] - arc[j][0] + 1) * sizeof(double));
-            double* sigma2 = (double *) malloc((arc[j][1] - arc[j][0] + 1) * sizeof(double));
+            double* ave_N; double* sigma; double* sigma2;
+            malloc_Double_Vector(&ave_N, (arc[j][1] - arc[j][0] + 1));
+            malloc_Double_Vector(&sigma, (arc[j][1] - arc[j][0] + 1));
+            malloc_Double_Vector(&sigma2, (arc[j][1] - arc[j][0] + 1));
+
             ave_N[0] = Nw[arc[j][0]][prn];
             sigma[0] = 0; sigma2[0] = 0;
             int count = 1;
@@ -1742,7 +1571,8 @@ double** pre_pro(Obs* obs_temp){
 
 int** Get_arc(double** L6, int prn, int* parc_n){
     int* arc; int index_of_arc = 0;
-    arc = (int *) malloc(2880 * sizeof(int));
+    malloc_Int_Vector(&arc, 2880);
+
     //arc赋初值为0
     for (int i = 0; i < 2880; i++){
         arc[i] = 0;
@@ -1782,39 +1612,13 @@ int** Get_arc(double** L6, int prn, int* parc_n){
     return result;
 }
 
-int** removeRows(int** arc, int n, int* arc_d, int d_size, int* new_size) {
-    // 计算新数组的行数
-    *new_size = n - d_size;
-
-    // 分配新数组的内存
-    int** arc_final = (int**)malloc(*new_size * sizeof(int*));
-    for (int i = 0; i < *new_size; i++) {
-        arc_final[i] = (int*)malloc(2 * sizeof(int)); // 假设二维数组的第二维大小固定为2
-    }
-
-    int arc_d_index = 0, arc_final_index = 0;
-    for (int i = 0; i < n; i++) {
-        if (arc_d_index < d_size && i == arc_d[arc_d_index]) {
-            // 如果当前行索引在删除列表中，跳过
-            arc_d_index++;
-        } else {
-            // 否则，复制到新数组中
-            arc_final[arc_final_index][0] = arc[i][0];
-            arc_final[arc_final_index][1] = arc[i][1];
-            arc_final_index++;
-        }
-    }
-    return arc_final;
-}
 
 // 功能：删除二维数组的某行，并返回删除后的数组
 // 入参：1. arc：指向二维数组的指针 2. n：指向数组行数的指针 3. row：要删除的行的索引
 void deleteRowAndReplace(int ***arc, int *n, int row) {
     int newN = *n - 1; // 新数组的行数
-    int **tempArc = (int **)malloc(newN * sizeof(int *));
-    for (int i = 0; i < newN; i++) {
-        tempArc[i] = (int *)malloc(2 * sizeof(int));
-    }
+    int **tempArc;
+    malloc_Int_2D(&tempArc, newN, 2);
 
     // 复制除了要删除的行之外的所有行到临时数组
     for (int i = 0, j = 0; i < *n; i++) {//这里应该从后面往前面删，不然会删一个，序号变一个
@@ -1884,16 +1688,7 @@ void DCB_Estimation(){
     for (int i = 0; i < doy_diff_size; i++){
         int doy = doy_diff[i];
         double*** sate_xyz;
-        sate_xyz = (double ***)malloc(3 * sizeof(double **));
-        for (int i = 0; i < 3; i++) {
-            sate_xyz[i] = (double **)malloc(2880 * sizeof(double *));
-            for (int j = 0; j < 2880; j++) {
-                sate_xyz[i][j] = (double *)malloc(32 * sizeof(double));
-                for (int k = 0; k < 32; k++) {
-                    sate_xyz[i][j][k] = 0.0; // 初始化为零
-                }
-            }
-        }
+        malloc_double_3D(&sate_xyz, 3, 2880, 32);
 
         char* load_sp3_file_path = get_load_sp3_pathname(doy);
         load_Sp3_From_Bin_File(&sate_xyz, 3, 2880, 32, load_sp3_file_path);
@@ -2006,10 +1801,8 @@ void removeSameElementAndReturn_Char(char** vector, char*** new_vector, int vect
     int new_size_temp = 0;
 
     //先申请一个跟原数组一样尺寸的数组，用于存储去重后的数组
-    char** new_vector_temp = (char **) malloc(vector_size * sizeof(char));
-    for (int i = 0; i < vector_size; i++){
-        new_vector_temp[i] = (char *) malloc(64 * sizeof(char));
-    }
+    char** new_vector_temp;
+    malloc_Char_Vector(&new_vector_temp, vector_size, 64);
 
     //得到去重后的数组。但此时还不能直接返回，因为去重后的数组中可能有空字符串
     strcpy(new_vector_temp[new_size_temp], vector[0]);
@@ -2125,10 +1918,7 @@ char* get_load_sp3_pathname(int doy){
 
 void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, double** IONC, int* IONC_size, int doy, double*** sate_xyz, SitesInfo sitesInfo, SDCB_REF sDCB_REF, int order) {
     char **stations;
-    stations = (char **) malloc(r_file_num * sizeof(char *));
-    for (int i = 0; i < r_file_num; i++) {
-        stations[i] = (char *) malloc(4 * sizeof(char)); // 假设每个观测量最大长度为4
-    }
+    malloc_Char_Vector(&stations, r_file_num, 4);
 
     for (int i = 0; i < r_file_num; i++) {
         strncpy(stations[i], &sitesInfo.name[i][0], 4);
@@ -2144,10 +1934,7 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
 
     //--check the number of each satellite's observations
     int *PRN;
-    PRN = (int *) malloc(32 * sizeof(int));
-    for (int i = 0; i < 32; i++) {
-        PRN[i] = 0;
-    }
+    malloc_Int_Vector(&PRN, 32);
 
     //为DCB_S申请内存
     *DCB_S = (double *) malloc(32 * sizeof(double));
@@ -2156,13 +1943,7 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     for (int i = 0; i < n_r; i++) {
         double **P4;
         //为P4申请内存并赋初值为0
-        P4 = (double **) malloc(2880 * sizeof(double *));
-        for (int j = 0; j < 2880; j++) {
-            P4[j] = (double *) malloc(32 * sizeof(double));
-            for (int k = 0; k < 32; k++) {
-                P4[j][k] = 0;
-            }
-        }
+        malloc_Double_2D(&P4, 2880, 32);
 
         load_P4_From_Bin_File(&P4, 2880, 32, P4_load_filepath[i]);
 
@@ -2196,6 +1977,7 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     for (int i=0; i<n_r;i++){
         double **P4;
         //为P4申请内存并赋初值为0
+        malloc_Double_2D(&P4, 2880, 32);
         P4 = (double **) malloc(2880 * sizeof(double *));
         for (int j = 0; j < 2880; j++) {
             P4[j] = (double *) malloc(32 * sizeof(double));
@@ -2282,18 +2064,12 @@ char** get_doy_P4_filepath(int doy, int* n_r){
     //遍历m_p4_path文件夹中的文件名，取出每个文件名的第5到第9位，转换成int，如果与doy相同，就将这个文件名存入一个字符串数组中
     int p4_num = countFilesInDirectory(m_p4_path);
     char** p4_file_names;
-    p4_file_names = (char **) malloc(p4_num * sizeof(char*));
-    for (int i = 0; i < p4_num; i++){
-        p4_file_names[i] = (char *) malloc(64 * sizeof(char));
-    }
+    malloc_Char_Vector(&p4_file_names, p4_num, 64);
     p4_file_names = getFileNamesInDirectory(m_p4_path, p4_file_names, p4_num);
 
     char** doy_p4_file_names;
     //分配足够内存
-    doy_p4_file_names = (char **) malloc(p4_num * sizeof(char*));
-    for (int i = 0; i < p4_num; i++){
-        doy_p4_file_names[i] = (char *) malloc(64 * sizeof(char));
-    }
+    malloc_Char_Vector(&doy_p4_file_names, p4_num, 64);
 
     int doy_p4_num = 0;
     for(int i = 0; i < p4_num; i++){
@@ -2309,10 +2085,7 @@ char** get_doy_P4_filepath(int doy, int* n_r){
     }
 
     char** doy_p4_file_names_return;
-    doy_p4_file_names_return = (char **) malloc(doy_p4_num * sizeof(char*));
-    for (int i = 0; i < doy_p4_num; i++){
-        doy_p4_file_names_return[i] = (char *) malloc(64 * sizeof(char));
-    }
+    malloc_Char_Vector(&doy_p4_file_names_return, doy_p4_num, 64);
 
     //把doy_p4_file_names中的前doy_p4_num个元素复制到doy_p4_file_names_return中
     for (int i = 0; i < doy_p4_num; i++){
@@ -2355,10 +2128,8 @@ void get_Matrix(double** P4, double** x, double** y, double**z, double sx, doubl
 
                 int est_num = (order+1)*(order+1)*12+n_s+n_r;
 
-                double* M_col = (double *) malloc(est_num * sizeof(double));
-                for (int l = 0; l < est_num; l++){
-                    M_col[l] = 0.0;
-                }
+                double* M_col;
+                malloc_Double_Vector(&M_col, est_num);
 
                 double* EA = get_EA(sx, sy, sz, x[k][j]*1000, y[k][j]*1000, z[k][j]*1000);
                 double E = EA[0]; double A = EA[1];
@@ -2457,11 +2228,8 @@ double* get_legendre(int n, double x){
 }
 
 double* legendre(int n, double x){
-    double* P = (double *) malloc((n+1) * sizeof(double));
-    for (int i = 0; i < n+1; i++){
-        P[i] = 0;
-    }
-    int P_size = 0;
+    double* P; int P_size = 0;
+    malloc_Double_Vector(&P, n+1);
 
     if (n==0){
         double y = 1;
@@ -2756,5 +2524,28 @@ void malloc_Int_Vector(int** vector, int size){
     *vector = (int *) malloc(size * sizeof(int));
     for (int i = 0; i < size; i++){
         (*vector)[i] = 0;
+    }
+}
+
+void malloc_Int_2D(int*** array, int row, int col){
+    *array = (int **) malloc(row * sizeof(int *));
+    for (int i = 0; i < row; i++) {
+        (*array)[i] = (int *) malloc(col * sizeof(int));
+        for (int j = 0; j < col; j++) {
+            (*array)[i][j] = 0; // 初始化为零
+        }
+    }
+}
+
+void malloc_double_3D(double**** array, int dim1, int dim2, int dim3){
+    *array = (double ***) malloc(dim1 * sizeof(double **));
+    for (int i = 0; i < dim1; i++) {
+        (*array)[i] = (double **) malloc(dim2 * sizeof(double *));
+        for (int j = 0; j < dim2; j++) {
+            (*array)[i][j] = (double *) malloc(dim3 * sizeof(double));
+            for (int k = 0; k < dim3; k++) {
+                (*array)[i][j][k] = 0.0; // 初始化为零
+            }
+        }
     }
 }
