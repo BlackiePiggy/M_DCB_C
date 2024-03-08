@@ -60,7 +60,6 @@ SDCB_REF sDCB_REF;
 
 // -----------------------------Function--------------------------------------
 int countFilesInDirectory(const char *folderPath);
-//void free_usage(SitesInfo sitesInfo, int len);
 void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs);
 void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType);
 void read_sp3(const char* s_ipath, const char* s_opath);
@@ -118,6 +117,10 @@ double* getDCB_S(double* R, int n_r, int n_s);
 double* getIONC(double* R, int n_r, int n_s);
 void write_vector_to_file(char *filename, double* vector, int size);
 char* generate_final_result_file_pathname(int doy, const char* type, const char* m_result_path);
+void malloc_Double_2D(double*** array, int row, int col);
+void malloc_Double_Vector(double** vector, int size);
+void malloc_Char_Vector(char*** vector, int size, int string_size);
+void malloc_Int_Vector(int** vector, int size);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -162,28 +165,11 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
     // 计算文件数
     r_file_num = countFilesInDirectory(r_ipath);
 
-    // 为 SitesInfo 结构体内的字符串数组 name 分配内存
-    psitesInfo->name = (char **) malloc(r_file_num * sizeof(char *));
-    for (int i = 0; i < r_file_num; i++) {
-        psitesInfo->name[i] = (char *) malloc(256 * sizeof(char)); // 假设文件名最大长度为256
-    }
-    psitesInfo->doy = (int *) malloc(r_file_num * sizeof(int));
-    for (int i = 0; i < r_file_num; i++){
-        psitesInfo->doy[i] = 0;
-    }
-    psitesInfo->coor = (double **) malloc(r_file_num * sizeof(double *));
-    for (int i = 0; i < r_file_num; i++) {
-        psitesInfo->coor[i] = (double *) malloc(3 * sizeof(double)); // 假设文件名最大长度为256
-    }
-    for (int i = 0; i < r_file_num; i++){
-        for (int j = 0; j < 3; j++){
-            psitesInfo->coor[i][j] = 0;
-        }
-    }
-    psitesInfo->RDCB_REF = (double *) malloc(r_file_num * sizeof(double));
-    for (int i = 0; i < r_file_num; i++){
-        psitesInfo->RDCB_REF[i] = 0;
-    }
+    // 为 SitesInfo 结构体内的变量分配内存
+    malloc_Char_Vector(&psitesInfo->name, r_file_num, 256);
+    malloc_Int_Vector(&psitesInfo->doy, r_file_num);
+    malloc_Double_2D(&psitesInfo->coor, r_file_num, 3);
+    malloc_Double_Vector(&psitesInfo->RDCB_REF, r_file_num);
 
     //为obs结构体内的数组分配内存，每个变量均需要一个(2880,32)尺寸的二维double数组
     // 分配内存空间给 P1
@@ -2739,4 +2725,36 @@ char* generate_final_result_file_pathname(int doy, const char* type, const char*
     strcat(pathname, ".txt");
 
     return pathname;
+}
+
+// 为二维数组申请内存，并赋初值为0
+void malloc_Double_2D(double*** array, int row, int col){
+    *array = (double **) malloc(row * sizeof(double *));
+    for (int i = 0; i < row; i++) {
+        (*array)[i] = (double *) malloc(col * sizeof(double));
+        for (int j = 0; j < col; j++) {
+            (*array)[i][j] = 0.0; // 初始化为零
+        }
+    }
+}
+
+void malloc_Double_Vector(double** vector, int size){
+    *vector = (double *) malloc(size * sizeof(double));
+    for (int i = 0; i < size; i++){
+        (*vector)[i] = 0.0;
+    }
+}
+
+void malloc_Char_Vector(char*** vector, int size, int string_size){
+    *vector = (char **) malloc(size * sizeof(char *));
+    for (int i = 0; i < size; i++){
+        (*vector)[i] = (char *) malloc(string_size * sizeof(char));
+    }
+}
+
+void malloc_Int_Vector(int** vector, int size){
+    *vector = (int *) malloc(size * sizeof(int));
+    for (int i = 0; i < size; i++){
+        (*vector)[i] = 0;
+    }
 }
