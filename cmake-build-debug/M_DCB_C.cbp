@@ -24,7 +24,7 @@
 				<Option type="1"/>
 				<Option compiler="gcc"/>
 				<Compiler>
-					<Add directory="D:/projects/M_DCB_C/lib/eigen-3.4.0"/>
+					<Add directory="D:/projects/M_DCB_C/lib/OpenBLAS-0.3.26-x64/include"/>
 					<Add directory="E:/JetBrain/CLion 2023.3.2/bin/mingw/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++"/>
 					<Add directory="E:/JetBrain/CLion 2023.3.2/bin/mingw/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32"/>
 					<Add directory="E:/JetBrain/CLion 2023.3.2/bin/mingw/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/backward"/>
@@ -47,7 +47,7 @@
 				<Option type="1"/>
 				<Option compiler="gcc"/>
 				<Compiler>
-					<Add directory="D:/projects/M_DCB_C/lib/eigen-3.4.0"/>
+					<Add directory="D:/projects/M_DCB_C/lib/OpenBLAS-0.3.26-x64/include"/>
 					<Add directory="E:/JetBrain/CLion 2023.3.2/bin/mingw/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++"/>
 					<Add directory="E:/JetBrain/CLion 2023.3.2/bin/mingw/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32"/>
 					<Add directory="E:/JetBrain/CLion 2023.3.2/bin/mingw/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/backward"/>

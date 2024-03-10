@@ -1,1 +1,1 @@
- -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 
+  -L"D:/projects/M_DCB_C/lib/OpenBLAS-0.3.26-x64/lib"  -Wl,-Bstatic -lopenblas -Wl,-Bdynamic -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 

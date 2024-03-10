@@ -5,12 +5,15 @@
 #include <math.h>
 #include <float.h>
 #include <cmath>
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
-#include <Eigen/SparseQR>
+//#include <Eigen/Dense>
+//#include <Eigen/Sparse>
+//#include <Eigen/SparseQR>
 #include <iostream>
+#include <cblas.h>
+#include <lapacke.h>
+//#include <blas.h>
 
-using namespace Eigen;
+//using namespace Eigen;
 using namespace std;
 
 // 假设 SitesInfo 结构体
@@ -110,7 +113,7 @@ void appendDoubleToVector(double **arr, int *size, double value);
 void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int* l_row_number, int sN_row_number);
 void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size);
 double* leastSquaresSolve(double** B_data, double* L_data, int rows, int cols);
-double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L);
+//double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L);
 double* getDCB_R(double* R, int n_r);
 double* getDCB_S(double* R, int n_r, int n_s);
 double* getIONC(double* R, int n_r, int n_s);
@@ -122,6 +125,12 @@ void malloc_Char_Vector(char*** vector, int size, int string_size);
 void malloc_Int_Vector(int** vector, int size);
 void malloc_double_3D(double**** array, int dim1, int dim2, int dim3);
 void malloc_Int_2D(int*** array, int row, int col);
+double *mat(int n, int m);
+int matinv(double *A, int n);
+void matmul(const char *tr, int n, int k, int m, double alpha, const double *A, const double *B, double beta, double *C);
+int lsq(const double *A, const double *y, int n, int m, double *x, double *Q);
+int *imat(int n, int m);
+double* flatten(double **arr, int row, int col);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -2022,30 +2031,38 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     addRowTo2DMatrixNewLine(&B, &C, &B_row_number, est_num);
     appendDoubleToVector(&l, &l_row_number, Wx);
 
-    // 转换成稀疏矩阵，并记录非零元素的数量
-    int dense_num = 0;
-    // 使用vector收集非零元素的triplets
-    vector<Triplet<double>> tripletList;
-    // 遍历密集矩阵以填充triplets
-    for (int i = 0; i < B_row_number; ++i) {
-        for (int j = 0; j < est_num; ++j) {
-            double value = B[i][j];
-            if (value != 0) { // 仅处理非零元素
-                tripletList.push_back(Triplet<double>(i, j, value));
-                dense_num++;
-            }
-        }
-    }
+    double* B_flat = flatten(B, B_row_number, est_num);
+    double* R;
+    malloc_Double_Vector(&R, est_num);
+    double* Q;
+    malloc_Double_Vector(&Q, B_row_number*B_row_number);
 
-    // 创建一个空的稀疏矩阵并使用triplets初始化
-    SparseMatrix<double> B_sparse(B_row_number, est_num);
-    B_sparse.setFromTriplets(tripletList.begin(), tripletList.end());
+    lsq(B_flat, l, est_num, B_row_number, R, Q);
 
-    // L转换为Eigen格式
-    VectorXd L_vec = Map<VectorXd>(l, l_row_number);
+//    // 转换成稀疏矩阵，并记录非零元素的数量
+//    int dense_num = 0;
+//    // 使用vector收集非零元素的triplets
+//    vector<Triplet<double>> tripletList;
+//    // 遍历密集矩阵以填充triplets
+//    for (int i = 0; i < B_row_number; ++i) {
+//        for (int j = 0; j < est_num; ++j) {
+//            double value = B[i][j];
+//            if (value != 0) { // 仅处理非零元素
+//                tripletList.push_back(Triplet<double>(i, j, value));
+//                dense_num++;
+//            }
+//        }
+//    }
+//
+//    // 创建一个空的稀疏矩阵并使用triplets初始化
+//    SparseMatrix<double> B_sparse(B_row_number, est_num);
+//    B_sparse.setFromTriplets(tripletList.begin(), tripletList.end());
+//
+//    // L转换为Eigen格式
+//    VectorXd L_vec = Map<VectorXd>(l, l_row_number);
 
-    // 最小二乘估计
-    double* R = leastSquaresSolveSparse(B_sparse, L_vec);
+//    // 最小二乘估计
+//    double* R = leastSquaresSolveSparse(B_sparse, L_vec);
 
     double* DCB_R_temp = getDCB_R(R, n_r);
     double* DCB_S_temp = getDCB_S(R, n_r, n_s);
@@ -2392,54 +2409,54 @@ void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size){
     }
 }
 
-double* leastSquaresSolve(double** B_data, double* L_data, int rows, int cols) {
-    // 将二维数组B_data和一维数组L_data转换为Eigen的矩阵和向量
-    MatrixXd B(rows, cols);
-    VectorXd L(rows);
-    for (int i = 0; i < rows; ++i) {
-        L(i) = L_data[i];
-        for (int j = 0; j < cols; ++j) {
-            B(i, j) = B_data[i][j];
-        }
-    }
+//double* leastSquaresSolve(double** B_data, double* L_data, int rows, int cols) {
+//    // 将二维数组B_data和一维数组L_data转换为Eigen的矩阵和向量
+//    MatrixXd B(rows, cols);
+//    VectorXd L(rows);
+//    for (int i = 0; i < rows; ++i) {
+//        L(i) = L_data[i];
+//        for (int j = 0; j < cols; ++j) {
+//            B(i, j) = B_data[i][j];
+//        }
+//    }
+//
+//    // 使用Eigen的JacobiSVD类进行最小二乘求解
+//    VectorXd R = B.jacobiSvd(ComputeThinU | ComputeThinV).solve(L);
+//
+//    // 将结果向量R转换回动态分配的double数组
+//    double* result = new double[cols];
+//    for (int i = 0; i < cols; ++i) {
+//        result[i] = R(i);
+//    }
+//
+//    return result;
+//}
 
-    // 使用Eigen的JacobiSVD类进行最小二乘求解
-    VectorXd R = B.jacobiSvd(ComputeThinU | ComputeThinV).solve(L);
-
-    // 将结果向量R转换回动态分配的double数组
-    double* result = new double[cols];
-    for (int i = 0; i < cols; ++i) {
-        result[i] = R(i);
-    }
-
-    return result;
-}
-
-double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L) {
-    // 确保B和L的维度匹配
-    if (B.rows() != L.size()) {
-        std::cerr << "Dimension mismatch." << std::endl;
-        return nullptr;
-    }
-
-    // 使用SparseQR求解器来解决最小二乘问题
-    SparseQR<SparseMatrix<double>, COLAMDOrdering<int>> solver;
-    solver.compute(B);  //这句耗费时间太长
-    if(solver.info() != Success) {
-        // 解决方案计算失败
-        std::cerr << "Solver failed to decompose the matrix." << std::endl;
-        return nullptr;
-    }
-    VectorXd R = solver.solve(L);
-
-    // 将结果向量R转换回动态分配的double数组
-    double* result = new double[B.cols()];
-    for (int i = 0; i < B.cols(); ++i) {
-        result[i] = R[i];
-    }
-
-    return result;
-}
+//double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L) {
+//    // 确保B和L的维度匹配
+//    if (B.rows() != L.size()) {
+//        std::cerr << "Dimension mismatch." << std::endl;
+//        return nullptr;
+//    }
+//
+//    // 使用SparseQR求解器来解决最小二乘问题
+//    SparseQR<SparseMatrix<double>, COLAMDOrdering<int>> solver;
+//    solver.compute(B);  //这句耗费时间太长
+//    if(solver.info() != Success) {
+//        // 解决方案计算失败
+//        std::cerr << "Solver failed to decompose the matrix." << std::endl;
+//        return nullptr;
+//    }
+//    VectorXd R = solver.solve(L);
+//
+//    // 将结果向量R转换回动态分配的double数组
+//    double* result = new double[B.cols()];
+//    for (int i = 0; i < B.cols(); ++i) {
+//        result[i] = R[i];
+//    }
+//
+//    return result;
+//}
 
 double* getDCB_R(double* R, int n_r){
     double* DCB_R = (double *) malloc(n_r * sizeof(double));
@@ -2548,4 +2565,119 @@ void malloc_double_3D(double**** array, int dim1, int dim2, int dim3){
             }
         }
     }
+}
+
+/* least square estimation -----------------------------------------------------
+* least square estimation by solving normal equation (x=(A*A')^-1*A*y)
+* args   : double *A        I   transpose of (weighted) design matrix (n x m)
+*          double *y        I   (weighted) measurements (m x 1)
+*          int    n,m       I   number of parameters and measurements (n<=m)
+*          double *x        O   estmated parameters (n x 1)
+*          double *Q        O   esimated parameters covariance matrix (n x n)
+* return : status (0:ok,0>:error)
+* notes  : for weighted least square, replace A and y by A*w and w*y (w=W^(1/2))
+*          matirix stored by column-major order (fortran convention)
+*-----------------------------------------------------------------------------*/
+int lsq(const double *A, const double *y, int n, int m, double *x, double *Q)
+{
+    double *Ay;
+    int info;
+
+    if (m<n) return -1;
+    Ay=mat(n,1);
+    matmul("NN",n,1,m,1.0,A,y,0.0,Ay); /* Ay=A*y */
+    matmul("NT",n,n,m,1.0,A,A,0.0,Q);  /* Q=A*A' */
+    if (!(info=matinv(Q,n))) matmul("NN",n,1,n,1.0,Q,Ay,0.0,x); /* x=Q^-1*Ay */
+    free(Ay);
+    return info;
+}
+
+double *mat(int n, int m)
+{
+    double *p;
+
+    if (n<=0||m<=0) return NULL;
+    if (!(p=(double *)malloc(sizeof(double)*n*m))) {
+        //fatalerr("matrix memory allocation error: n=%d,m=%d\n",n,m);
+    }
+    return p;
+}
+
+/* multiply matrix (wrapper of blas dgemm) -------------------------------------
+* multiply matrix by matrix (C=alpha*A*B+beta*C)
+* args   : char   *tr       I  transpose flags ("N":normal,"T":transpose)
+*          int    n,k,m     I  size of (transposed) matrix A,B
+*          double alpha     I  alpha
+*          double *A,*B     I  (transposed) matrix A (n x m), B (m x k)
+*          double beta      I  beta
+*          double *C        IO matrix C (n x k)
+* return : none
+*-----------------------------------------------------------------------------*/
+void matmul(const char *tr, int n, int k, int m, double alpha,
+                   const double *A, const double *B, double beta, double *C)
+{
+    int lda=tr[0]=='T'?m:n,ldb=tr[1]=='T'?k:m;
+
+//    dgemm((char *)tr,(char *)tr+1,&n,&k,&m,&alpha,(double *)A,&lda,(double *)B,
+//           &ldb,&beta,C,&n);
+
+    if (tr[0] == 'N' && tr[1] == 'N') {
+        cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, n, k, m, alpha, A, lda, B, ldb, beta, C, n);
+    } else if (tr[0] == 'N' && tr[1] == 'T') {
+        cblas_dgemm(CblasColMajor, CblasNoTrans, CblasTrans, n, k, m, alpha, A, lda, B, ldb, beta, C, n);
+    } else if (tr[0] == 'T' && tr[1] == 'N') {
+        cblas_dgemm(CblasColMajor, CblasTrans, CblasNoTrans, n, k, m, alpha, A, lda, B, ldb, beta, C, n);
+    } else if (tr[0] == 'T' && tr[1] == 'T') {
+        cblas_dgemm(CblasColMajor, CblasTrans, CblasTrans, n, k, m, alpha, A, lda, B, ldb, beta, C, n);
+    }
+}
+/* inverse of matrix -----------------------------------------------------------
+* inverse of matrix (A=A^-1)
+* args   : double *A        IO  matrix (n x n)
+*          int    n         I   size of matrix A
+* return : status (0:ok,0>:error)
+*-----------------------------------------------------------------------------*/
+int matinv(double *A, int n)
+{
+    double *work;
+    int info,lwork=n*16,*ipiv=imat(n,1);
+
+    work=mat(lwork,1);
+    dgetrf_(&n,&n,A,&n,ipiv,&info);
+    if (!info) dgetri_(&n,A,&n,ipiv,work,&lwork,&info);
+    free(ipiv); free(work);
+    return info;
+}
+
+int *imat(int n, int m)
+{
+    int *p;
+
+    if (n<=0||m<=0) return NULL;
+    if (!(p=(int *)malloc(sizeof(int)*n*m))) {
+        //fatalerr("integer matrix memory allocation error: n=%d,m=%d\n",n,m);
+    }
+    return p;
+}
+
+double* flatten(double **arr, int row, int col) {
+    double *flattened = (double *)malloc(row * col * sizeof(double));
+    if (flattened == NULL) {
+        printf("Memory allocation failed\n");
+        exit(1);
+    }
+
+    for (int j = 0; j < col; j++) {
+        for (int i = 0; i < row; i++) {
+            flattened[j * row + i] = arr[i][j];
+        }
+    }
+
+//    for (int j = 0; j < row; j++) {
+//        for (int i = 0; i < col; i++) {
+//            flattened[j * col + i] = arr[j][i];
+//        }
+//    }
+
+    return flattened;
 }
