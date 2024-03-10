@@ -8,8 +8,8 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "D:/projects/M_DCB_C/ReadFile.cpp" "CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj" "gcc" "CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj.d"
-  "D:/projects/M_DCB_C/main.cpp" "CMakeFiles/M_DCB_C.dir/main.cpp.obj" "gcc" "CMakeFiles/M_DCB_C.dir/main.cpp.obj.d"
+  "D:/Sync/projects/M_DCB_C/ReadFile.cpp" "CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj" "gcc" "CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj.d"
+  "D:/Sync/projects/M_DCB_C/main.cpp" "CMakeFiles/M_DCB_C.dir/main.cpp.obj" "gcc" "CMakeFiles/M_DCB_C.dir/main.cpp.obj.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

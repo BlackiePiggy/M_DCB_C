@@ -1,4 +1,4 @@
-ToolSet: 11.0 w64 (local)@E:\JetBrain\CLion 2023.3.2\bin\mingw
+ToolSet: 11.0 w64 (local)@D:\Softwares\CLion 2023.3.4\bin\mingw
 Options: 
 
 Options:

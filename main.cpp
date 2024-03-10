@@ -38,14 +38,14 @@ typedef struct {
 } SDCB_REF;
 
 // -----------------------------Setting--------------------------------------
-const char* r_ipath = "D:\\projects\\M_DCB_C\\RINEX_files";// rinex
-const char* r_opath = "D:\\projects\\M_DCB_C\\RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
-const char* s_ipath = "D:\\projects\\M_DCB_C\\SP3_files";// sp3
-const char* s_opath = "D:\\projects\\M_DCB_C\\SP3_output_files";//
-const char* i_ipath = "D:\\projects\\M_DCB_C\\IONEX_files";// ionex
-const char* i_opath = "D:\\projects\\M_DCB_C\\IONEX_output_files";// ionex
-const char* m_p4_path = "D:\\projects\\M_DCB_C\\M_P4";// P4
-const char* m_result_path = "D:\\projects\\M_DCB_C\\M_Result";// result
+const char* r_ipath = "RINEX_files";// rinex
+const char* r_opath = "RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
+const char* s_ipath = "SP3_files";// sp3
+const char* s_opath = "SP3_output_files";//
+const char* i_ipath = "IONEX_files";// ionex
+const char* i_opath = "IONEX_output_files";// ionex
+const char* m_p4_path = "M_P4";// P4
+const char* m_result_path = "M_Result";// result
 int lim = 10;// el
 int order = 4;// order
 int r_file_num;
@@ -2585,9 +2585,12 @@ int lsq(const double *A, const double *y, int n, int m, double *x, double *Q)
 
     if (m<n) return -1;
     Ay=mat(n,1);
-    matmul("NN",n,1,m,1.0,A,y,0.0,Ay); /* Ay=A*y */
-    matmul("NT",n,n,m,1.0,A,A,0.0,Q);  /* Q=A*A' */
-    if (!(info=matinv(Q,n))) matmul("NN",n,1,n,1.0,Q,Ay,0.0,x); /* x=Q^-1*Ay */
+    cblas_dgemm(CblasColMajor, CblasTrans, CblasNoTrans, n, 1, m, 1.0, A, m, y, m, 0.0, Ay, n);/* Ay=A'*y */
+    cblas_dgemm(CblasColMajor, CblasTrans, CblasNoTrans,n,n,m,1.0,A,m,A,m,0.0,Q,n);/* Q=A'*A */
+    //matmul("NN",n,1,m,1.0,A,y,0.0,Ay);
+    //matmul("NT",n,n,m,1.0,A,A,0.0,Q);
+    //if (!(info=matinv(Q,n))) matmul("NN",n,1,n,1.0,Q,Ay,0.0,x); /* x=Q^-1*Ay */
+    if (!(info=matinv(Q,n))) cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, n, 1, n, 1.0, Q, n, Ay, n, 0.0, x, n); /* x=Q^-1*Ay */
     free(Ay);
     return info;
 }
