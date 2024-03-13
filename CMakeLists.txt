@@ -3,12 +3,15 @@ project(M_DCB_C)
 
 # 设置OpenBLAS目录
 set(OpenBLAS_DIR "lib\\OpenBLAS-0.3.26-x64")
+set(SuiteSparse_DIR "lib\\suitesparse")
 
 # 包含OpenBLAS头文件
 include_directories(${OpenBLAS_DIR}/include)
+include_directories(${SuiteSparse_DIR}/include)
 
 # 链接OpenBLAS库
 link_directories(${OpenBLAS_DIR}/lib)
+link_directories(${SuiteSparse_DIR}/lib)
 
 #include_directories("D:\\projects\\M_DCB_C\\lib\\eigen-3.4.0")
 
@@ -18,4 +21,16 @@ add_executable(M_DCB_C main.cpp
         ReadFile.cpp
         ReadFile.h)
 
+target_link_libraries(M_DCB_C D:/projects/M_DCB_C/lib/suitesparse/lib/libspqr.so)
+target_link_libraries(M_DCB_C D:/projects/M_DCB_C/lib/suitesparse/lib/libcholmod.so)
+target_link_libraries(M_DCB_C D:/projects/M_DCB_C/lib/suitesparse/lib/libsuitesparseconfig.so)
 target_link_libraries(M_DCB_C libopenblas.a)
+target_link_libraries(M_DCB_C D:/projects/M_DCB_C/lib/suitesparse/lib/libamd.so)
+target_link_libraries(M_DCB_C D:/projects/M_DCB_C/lib/suitesparse/lib/libcamd.so)
+target_link_libraries(M_DCB_C D:/projects/M_DCB_C/lib/suitesparse/lib/libccolamd.so)
+
+
+
+
+
+

@@ -1,3 +1,3 @@
-"D:\Softwares\CLion 2023.3.4\bin\cmake\win\x64\bin\cmake.exe" -E rm -f CMakeFiles\M_DCB_C.dir/objects.a
-D:\SOFTWA~1\CLION2~1.4\bin\mingw\bin\ar.exe qc CMakeFiles\M_DCB_C.dir/objects.a @CMakeFiles\M_DCB_C.dir\objects1.rsp
-D:\SOFTWA~1\CLION2~1.4\bin\mingw\bin\G__~1.EXE -g -Wl,--whole-archive CMakeFiles\M_DCB_C.dir/objects.a -Wl,--no-whole-archive -o M_DCB_C.exe -Wl,--out-implib,libM_DCB_C.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\M_DCB_C.dir\linkLibs.rsp
+"E:\JetBrain\CLion 2023.3.2\bin\cmake\win\x64\bin\cmake.exe" -E rm -f CMakeFiles\M_DCB_C.dir/objects.a
+"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\ar.exe" qc CMakeFiles\M_DCB_C.dir/objects.a @CMakeFiles\M_DCB_C.dir\objects1.rsp
+"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" -g -Wl,--whole-archive CMakeFiles\M_DCB_C.dir/objects.a -Wl,--no-whole-archive -o M_DCB_C.exe -Wl,--out-implib,libM_DCB_C.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\M_DCB_C.dir\linkLibs.rsp

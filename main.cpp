@@ -11,7 +11,10 @@
 #include <iostream>
 #include <cblas.h>
 #include <lapacke.h>
-//#include <blas.h>
+#include <lapack.h>
+#include <cholmod.h>
+#include <SuiteSparse_config.h>
+#include <SuiteSparseQR_C.h>
 
 //using namespace Eigen;
 using namespace std;
@@ -38,14 +41,14 @@ typedef struct {
 } SDCB_REF;
 
 // -----------------------------Setting--------------------------------------
-const char* r_ipath = "RINEX_files";// rinex
-const char* r_opath = "RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
-const char* s_ipath = "SP3_files";// sp3
-const char* s_opath = "SP3_output_files";//
-const char* i_ipath = "IONEX_files";// ionex
-const char* i_opath = "IONEX_output_files";// ionex
-const char* m_p4_path = "M_P4";// P4
-const char* m_result_path = "M_Result";// result
+const char* r_ipath = "D:\\projects\\M_DCB_C\\RINEX_files";// rinex
+const char* r_opath = "D:\\projects\\M_DCB_C\\RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
+const char* s_ipath = "D:\\projects\\M_DCB_C\\SP3_files";// sp3
+const char* s_opath = "D:\\projects\\M_DCB_C\\SP3_output_files";//
+const char* i_ipath = "D:\\projects\\M_DCB_C\\IONEX_files";// ionex
+const char* i_opath = "D:\\projects\\M_DCB_C\\IONEX_output_files";// ionex
+const char* m_p4_path = "D:\\projects\\M_DCB_C\\M_P4";// P4
+const char* m_result_path = "D:\\projects\\M_DCB_C\\M_Result";// result
 int lim = 10;// el
 int order = 4;// order
 int r_file_num;
@@ -131,6 +134,9 @@ void matmul(const char *tr, int n, int k, int m, double alpha, const double *A, 
 int lsq(const double *A, const double *y, int n, int m, double *x, double *Q);
 int *imat(int n, int m);
 double* flatten(double **arr, int row, int col);
+void inverse(double* A, int N);
+cholmod_sparse* array_to_cholmod_sparse(double** B, int B_row_number, int est_num);
+void convertToCholmodSparse(double** B, int B_row_number, int est_num, cholmod_common* c, cholmod_sparse** A);
 
 // -----------------------------Main--------------------------------------
 int main() {
@@ -2037,7 +2043,22 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     double* Q;
     malloc_Double_Vector(&Q, B_row_number*B_row_number);
 
-    lsq(B_flat, l, est_num, B_row_number, R, Q);
+    cholmod_common c;
+    cholmod_sparse* A = NULL;
+
+    convertToCholmodSparse(B, B_row_number, est_num, &c, &A);
+
+
+
+//    lsq(B_flat, l, est_num, B_row_number, R, Q);
+//    dgels_(&trans, &B_row_number, &est_num, &nrhs, B_flat, &B_row_number, l, &B_row_number, &work_query, &lwork, &info, 0);
+//    lwork = (int)work_query;
+//    double *work = (double*)malloc(lwork * sizeof(double));
+//    if (work == NULL) {
+//        printf("Error: Unable to allocate workspace\n");
+//    }
+//    dgels_(&trans, &B_row_number, &est_num, &nrhs, B_flat, &B_row_number, l, &B_row_number, work, &lwork, &info, 0);
+
 
 //    // 转换成稀疏矩阵，并记录非零元素的数量
 //    int dense_num = 0;
@@ -2590,7 +2611,11 @@ int lsq(const double *A, const double *y, int n, int m, double *x, double *Q)
     //matmul("NN",n,1,m,1.0,A,y,0.0,Ay);
     //matmul("NT",n,n,m,1.0,A,A,0.0,Q);
     //if (!(info=matinv(Q,n))) matmul("NN",n,1,n,1.0,Q,Ay,0.0,x); /* x=Q^-1*Ay */
-    if (!(info=matinv(Q,n))) cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, n, 1, n, 1.0, Q, n, Ay, n, 0.0, x, n); /* x=Q^-1*Ay */
+//    if (!(info=matinv(Q,n))) {
+//        cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, n, 1, n, 1.0, Q, n, Ay, n, 0.0, x, n); /* x=Q^-1*Ay */
+//    }
+    inverse(Q, n);
+    cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, n, 1, n, 1.0, Q, n, Ay, n, 0.0, x, n); /* x=Q^-1*Ay */
     free(Ay);
     return info;
 }
@@ -2684,3 +2709,74 @@ double* flatten(double **arr, int row, int col) {
 
     return flattened;
 }
+
+void inverse(double* A, int N){
+    int *IPIV = new int[N];
+    int LWORK = N*N;
+    double *WORK = new double[LWORK];
+    int INFO;
+
+    dgetrf_(&N,&N,A,&N,IPIV,&INFO);
+    dgetri_(&N,A,&N,IPIV,WORK,&LWORK,&INFO);
+
+    delete[] IPIV;
+    delete[] WORK;
+}
+
+void convertToCholmodSparse(double** B, int B_row_number, int est_num, cholmod_common* c, cholmod_sparse** A) {
+    cholmod_start(c);
+
+    // 估计非零元素的数量。在一个稠密矩阵的情况下，这将是B_row_number * est_num
+    // 对于实际的稀疏矩阵，这应当基于非零元素的实际数量
+    int nzmax = B_row_number * est_num;
+
+    // 分配稀疏矩阵空间
+    *A = cholmod_allocate_sparse(B_row_number, est_num, nzmax, 1, 1, 0, CHOLMOD_REAL, c);
+
+    double* values = (double*)malloc(nzmax * sizeof(double));
+    int* row_indices = (int*)malloc(nzmax * sizeof(int));
+    int* col_pointers = (int*)malloc((est_num+1) * sizeof(int));
+
+    int nz = 0; // 非零元素计数器
+    for (int j = 0; j < est_num; ++j) {
+        col_pointers[j] = nz;
+        for (int i = 0; i < B_row_number; ++i) {
+            if (B[i][j] != 0) { // 假设为稀疏矩阵，跳过0值
+                values[nz] = B[i][j];
+                row_indices[nz] = i;
+                nz++;
+            }
+        }
+    }
+    col_pointers[est_num] = nz;
+
+    // 更新cholmod_sparse结构
+    (*A)->nzmax = nzmax;
+    (*A)->nrow = B_row_number;
+    (*A)->ncol = est_num;
+    (*A)->p = col_pointers;
+    (*A)->i = row_indices;
+    (*A)->x = values;
+    (*A)->stype = 0; // 矩阵类型：0表示非对称矩阵
+    (*A)->packed = 1; // 表示列指针是紧密打包的
+    (*A)->xtype = CHOLMOD_REAL; // 矩阵值类型
+}
+
+// 将一维double数组转换为cholmod_dense
+//cholmod_dense* convertToCholmodDense(double* l, int l_row_num, cholmod_common* c) {
+//    // 初始化CHOLMOD环境
+//    cholmod_start(c);
+//
+//    // 创建一个新的cholmod_dense结构，用于存储数组l的数据
+//    cholmod_dense* A = cholmod_allocate_dense(l_row_num, 1, l_row_num, CHOLMOD_REAL, c);
+//
+//    // 获取cholmod_dense结构中的数据指针
+//    double* Ax = A->x;
+//
+//    // 复制数组l的数据到cholmod_dense结构
+//    for (int i = 0; i < l_row_num; ++i) {
+//        Ax[i] = l[i];
+//    }
+//
+//    return A;
+//}

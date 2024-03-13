@@ -43,19 +43,19 @@ cmake_force:
 SHELL = cmd.exe
 
 # The CMake executable.
-CMAKE_COMMAND = "D:\Softwares\CLion 2023.3.4\bin\cmake\win\x64\bin\cmake.exe"
+CMAKE_COMMAND = "E:\JetBrain\CLion 2023.3.2\bin\cmake\win\x64\bin\cmake.exe"
 
 # The command to remove a file.
-RM = "D:\Softwares\CLion 2023.3.4\bin\cmake\win\x64\bin\cmake.exe" -E rm -f
+RM = "E:\JetBrain\CLion 2023.3.2\bin\cmake\win\x64\bin\cmake.exe" -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = D:\Sync\projects\M_DCB_C
+CMAKE_SOURCE_DIR = D:\projects\M_DCB_C
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = D:\Sync\projects\M_DCB_C\cmake-build-debug
+CMAKE_BINARY_DIR = D:\projects\M_DCB_C\cmake-build-debug
 
 # Include any dependencies generated for this target.
 include CMakeFiles/M_DCB_C.dir/depend.make
@@ -70,33 +70,33 @@ include CMakeFiles/M_DCB_C.dir/flags.make
 
 CMakeFiles/M_DCB_C.dir/main.cpp.obj: CMakeFiles/M_DCB_C.dir/flags.make
 CMakeFiles/M_DCB_C.dir/main.cpp.obj: CMakeFiles/M_DCB_C.dir/includes_CXX.rsp
-CMakeFiles/M_DCB_C.dir/main.cpp.obj: D:/Sync/projects/M_DCB_C/main.cpp
+CMakeFiles/M_DCB_C.dir/main.cpp.obj: D:/projects/M_DCB_C/main.cpp
 CMakeFiles/M_DCB_C.dir/main.cpp.obj: CMakeFiles/M_DCB_C.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\Sync\projects\M_DCB_C\cmake-build-debug\CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/M_DCB_C.dir/main.cpp.obj"
-	D:\SOFTWA~1\CLION2~1.4\bin\mingw\bin\G__~1.EXE $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/M_DCB_C.dir/main.cpp.obj -MF CMakeFiles\M_DCB_C.dir\main.cpp.obj.d -o CMakeFiles\M_DCB_C.dir\main.cpp.obj -c D:\Sync\projects\M_DCB_C\main.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\projects\M_DCB_C\cmake-build-debug\CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/M_DCB_C.dir/main.cpp.obj"
+	"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/M_DCB_C.dir/main.cpp.obj -MF CMakeFiles\M_DCB_C.dir\main.cpp.obj.d -o CMakeFiles\M_DCB_C.dir\main.cpp.obj -c D:\projects\M_DCB_C\main.cpp
 
 CMakeFiles/M_DCB_C.dir/main.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/M_DCB_C.dir/main.cpp.i"
-	D:\SOFTWA~1\CLION2~1.4\bin\mingw\bin\G__~1.EXE $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E D:\Sync\projects\M_DCB_C\main.cpp > CMakeFiles\M_DCB_C.dir\main.cpp.i
+	"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E D:\projects\M_DCB_C\main.cpp > CMakeFiles\M_DCB_C.dir\main.cpp.i
 
 CMakeFiles/M_DCB_C.dir/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/M_DCB_C.dir/main.cpp.s"
-	D:\SOFTWA~1\CLION2~1.4\bin\mingw\bin\G__~1.EXE $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\Sync\projects\M_DCB_C\main.cpp -o CMakeFiles\M_DCB_C.dir\main.cpp.s
+	"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\projects\M_DCB_C\main.cpp -o CMakeFiles\M_DCB_C.dir\main.cpp.s
 
 CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: CMakeFiles/M_DCB_C.dir/flags.make
 CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: CMakeFiles/M_DCB_C.dir/includes_CXX.rsp
-CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: D:/Sync/projects/M_DCB_C/ReadFile.cpp
+CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: D:/projects/M_DCB_C/ReadFile.cpp
 CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj: CMakeFiles/M_DCB_C.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\Sync\projects\M_DCB_C\cmake-build-debug\CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj"
-	D:\SOFTWA~1\CLION2~1.4\bin\mingw\bin\G__~1.EXE $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj -MF CMakeFiles\M_DCB_C.dir\ReadFile.cpp.obj.d -o CMakeFiles\M_DCB_C.dir\ReadFile.cpp.obj -c D:\Sync\projects\M_DCB_C\ReadFile.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=D:\projects\M_DCB_C\cmake-build-debug\CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj"
+	"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj -MF CMakeFiles\M_DCB_C.dir\ReadFile.cpp.obj.d -o CMakeFiles\M_DCB_C.dir\ReadFile.cpp.obj -c D:\projects\M_DCB_C\ReadFile.cpp
 
 CMakeFiles/M_DCB_C.dir/ReadFile.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/M_DCB_C.dir/ReadFile.cpp.i"
-	D:\SOFTWA~1\CLION2~1.4\bin\mingw\bin\G__~1.EXE $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E D:\Sync\projects\M_DCB_C\ReadFile.cpp > CMakeFiles\M_DCB_C.dir\ReadFile.cpp.i
+	"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E D:\projects\M_DCB_C\ReadFile.cpp > CMakeFiles\M_DCB_C.dir\ReadFile.cpp.i
 
 CMakeFiles/M_DCB_C.dir/ReadFile.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/M_DCB_C.dir/ReadFile.cpp.s"
-	D:\SOFTWA~1\CLION2~1.4\bin\mingw\bin\G__~1.EXE $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\Sync\projects\M_DCB_C\ReadFile.cpp -o CMakeFiles\M_DCB_C.dir\ReadFile.cpp.s
+	"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S D:\projects\M_DCB_C\ReadFile.cpp -o CMakeFiles\M_DCB_C.dir\ReadFile.cpp.s
 
 # Object files for target M_DCB_C
 M_DCB_C_OBJECTS = \
@@ -109,10 +109,16 @@ M_DCB_C_EXTERNAL_OBJECTS =
 M_DCB_C.exe: CMakeFiles/M_DCB_C.dir/main.cpp.obj
 M_DCB_C.exe: CMakeFiles/M_DCB_C.dir/ReadFile.cpp.obj
 M_DCB_C.exe: CMakeFiles/M_DCB_C.dir/build.make
+M_DCB_C.exe: D:/projects/M_DCB_C/lib/suitesparse/lib/libspqr.so
+M_DCB_C.exe: D:/projects/M_DCB_C/lib/suitesparse/lib/libcholmod.so
+M_DCB_C.exe: D:/projects/M_DCB_C/lib/suitesparse/lib/libsuitesparseconfig.so
+M_DCB_C.exe: D:/projects/M_DCB_C/lib/suitesparse/lib/libamd.so
+M_DCB_C.exe: D:/projects/M_DCB_C/lib/suitesparse/lib/libcamd.so
+M_DCB_C.exe: D:/projects/M_DCB_C/lib/suitesparse/lib/libccolamd.so
 M_DCB_C.exe: CMakeFiles/M_DCB_C.dir/linkLibs.rsp
 M_DCB_C.exe: CMakeFiles/M_DCB_C.dir/objects1.rsp
 M_DCB_C.exe: CMakeFiles/M_DCB_C.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=D:\Sync\projects\M_DCB_C\cmake-build-debug\CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable M_DCB_C.exe"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=D:\projects\M_DCB_C\cmake-build-debug\CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable M_DCB_C.exe"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles\M_DCB_C.dir\link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -124,6 +130,6 @@ CMakeFiles/M_DCB_C.dir/clean:
 .PHONY : CMakeFiles/M_DCB_C.dir/clean
 
 CMakeFiles/M_DCB_C.dir/depend:
-	$(CMAKE_COMMAND) -E cmake_depends "MinGW Makefiles" D:\Sync\projects\M_DCB_C D:\Sync\projects\M_DCB_C D:\Sync\projects\M_DCB_C\cmake-build-debug D:\Sync\projects\M_DCB_C\cmake-build-debug D:\Sync\projects\M_DCB_C\cmake-build-debug\CMakeFiles\M_DCB_C.dir\DependInfo.cmake "--color=$(COLOR)"
+	$(CMAKE_COMMAND) -E cmake_depends "MinGW Makefiles" D:\projects\M_DCB_C D:\projects\M_DCB_C D:\projects\M_DCB_C\cmake-build-debug D:\projects\M_DCB_C\cmake-build-debug D:\projects\M_DCB_C\cmake-build-debug\CMakeFiles\M_DCB_C.dir\DependInfo.cmake "--color=$(COLOR)"
 .PHONY : CMakeFiles/M_DCB_C.dir/depend
 
