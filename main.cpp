@@ -16,6 +16,9 @@
 #include <SuiteSparse_config.h>
 #include <SuiteSparseQR_C.h>
 
+// 宏定义 Linux
+#define LINUX
+
 //using namespace Eigen;
 using namespace std;
 
@@ -41,14 +44,14 @@ typedef struct {
 } SDCB_REF;
 
 // -----------------------------Setting--------------------------------------
-const char* r_ipath = "D:\\projects\\M_DCB_C\\RINEX_files";// rinex
-const char* r_opath = "D:\\projects\\M_DCB_C\\RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
-const char* s_ipath = "D:\\projects\\M_DCB_C\\SP3_files";// sp3
-const char* s_opath = "D:\\projects\\M_DCB_C\\SP3_output_files";//
-const char* i_ipath = "D:\\projects\\M_DCB_C\\IONEX_files";// ionex
-const char* i_opath = "D:\\projects\\M_DCB_C\\IONEX_output_files";// ionex
-const char* m_p4_path = "D:\\projects\\M_DCB_C\\M_P4";// P4
-const char* m_result_path = "D:\\projects\\M_DCB_C\\M_Result";// result
+const char* r_ipath = "/home/jason/projects/M_DCB_C/RINEX_files";// rinex
+const char* r_opath = "/home/jason/projects/M_DCB_C/RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
+const char* s_ipath = "/home/jason/projects/M_DCB_C/SP3_files";// sp3
+const char* s_opath = "/home/jason/projects/M_DCB_C/SP3_output_files";//
+const char* i_ipath = "/home/jason/projects/M_DCB_C/IONEX_files";// ionex
+const char* i_opath = "/home/jason/projects/M_DCB_C/IONEX_output_files";// ionex
+const char* m_p4_path = "/home/jason/projects/M_DCB_C/M_P4";// P4
+const char* m_result_path = "/home/jason/projects/M_DCB_C/M_Result";// result
 int lim = 10;// el
 int order = 4;// order
 int r_file_num;
@@ -221,21 +224,16 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
         printf("Reading File No.%d :%s\n", i + 1, psitesInfo->name[i]);
         // 打开文件
         strcpy(filename, r_ipath);
+#ifdef LINUX
+        strcat(filename, "/");
+#elif defined(WINDOWS)
         strcat(filename, "\\");
+#else
+#endif
         strcat(filename, psitesInfo->name[i]);
         file = fopen(filename, "r");
         if (file == NULL) {
             perror("Can't Open File");
-        }
-
-        //给pobs结构体内的数组赋初值为0
-        for (int j = 0; j < 2880; j++) {
-            for (int k = 0; k < 32; k++) {
-                pobs->P1[j][k] = 0.0;
-                pobs->P2[j][k] = 0.0;
-                pobs->L1[j][k] = 0.0;
-                pobs->L2[j][k] = 0.0;
-            }
         }
 
         while (fgets(line, sizeof(line), file)) {
@@ -429,7 +427,12 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
 
         //生成文件名，路径为当前路径下的RINEX_output_files文件夹
         strcpy(sav_filename, r_opath);
+#ifdef LINUX
+        strcat(sav_filename, "/");
+#elif defined(WINDOWS)
         strcat(sav_filename, "\\");
+#else
+#endif
         strcat(sav_filename, psitesInfo->name[i]);
         strcpy(sav_dat_filename, sav_filename);
         strcat(sav_filename, ".csv");
@@ -498,7 +501,13 @@ void read_sp3(const char* s_ipath, const char* s_opath){
             if (index == i+2) {  //前两个文件分别是"."和"..",所以从第三个文件开始读
                 char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
                 strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+
+#ifdef LINUX
+                strcat(filepath, "/");
+#elif defined(WINDOWS)
                 strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+#else
+#endif
                 strcat(filepath, entry->d_name);  // 将文件名拷贝到缓冲区
                 //把filepath的值赋给pre_file_name
                 strcpy(pre_file_name, filepath);
@@ -506,7 +515,13 @@ void read_sp3(const char* s_ipath, const char* s_opath){
             if (index == i+3){
                 char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
                 strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+
+#ifdef LINUX
+                strcat(filepath, "/");
+#elif defined(WINDOWS)
                 strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+#else
+#endif
                 strcat(filepath, entry->d_name);  // 将文件名拷贝到缓冲区
                 strcpy(cur_file_name, filepath);
 
@@ -516,7 +531,13 @@ void read_sp3(const char* s_ipath, const char* s_opath){
             if (index == i+4){
                 char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
                 strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+
+#ifdef LINUX
+                strcat(filepath, "/");
+#elif defined(WINDOWS)
                 strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+#else
+#endif
                 strcat(filepath, entry->d_name);  // 将文件名拷贝到缓冲区
                 strcpy(next_file_name, filepath);
             }
@@ -544,7 +565,12 @@ void read_sp3(const char* s_ipath, const char* s_opath){
         char sav_filename[256]; // 假设文件名长度不超过256个字符
         //生成文件名，路径为当前路径下的SP3_output_files文件夹
         strcpy(sav_filename, s_opath);
+#ifdef LINUX
+        strcat(sav_filename, "/");
+#elif defined(WINDOWS)
         strcat(sav_filename, "\\");
+#else
+#endif
         //添加G_Week和Day_of_Week到文件名中
         char G_Week_str[5];
         char Day_of_Week_str[2];
@@ -625,7 +651,12 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
         //开始读ionex文件
         char ionex_file_path[256];
         strcpy(ionex_file_path, i_ipath);
+#ifdef LINUX
+        strcat(ionex_file_path, "/");
+#elif defined(WINDOWS)
         strcat(ionex_file_path, "\\");
+#else
+#endif
         strcat(ionex_file_path, ionex_filenames[index]);
 
         read_single_ionex(ionex_file_path, i, sites_name, doy_num, sdcb_ref, DCB_rec);
@@ -654,10 +685,11 @@ int countFilesInDirectory(const char *folderPath) {
 
     // 读取文件夹中的文件
     while ((entry = readdir(dir)) != NULL) {
-        counter ++;
-//        printf("No.%d :%s\n", counter,entry->d_name); //Print file names
+        if (entry->d_name[0] != '.'){
+            counter ++;
+            printf("No.%d :%s\n", counter,entry->d_name); //Print file names
+        }
     }
-    counter = counter - 2;
 
     // 关闭文件夹
     closedir(dir);
@@ -1033,7 +1065,6 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
 
     removeSameElementAndReturn_Char(sitesOnlyName, &sites, r_file_num, &new_size);
 
-
     for (int j = 1; j < r_file_num; j++){
         //查看doys数组中是否有与psitesInfo->doy[i]相同的元素，若有，则不做任何行为，若无，则将psitesInfo->doy[i]赋值给doys[new_size]，并且new_size加1
         int flag = 0;
@@ -1060,7 +1091,12 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
         char rinex_file_path[256];
         Obs obs_temp;
         strcpy(rinex_file_path, r_opath);
+#ifdef LINUX
+        strcat(rinex_file_path, "/");
+#elif defined(WINDOWS)
         strcat(rinex_file_path, "\\");
+#else
+#endif
         strcat(rinex_file_path, sitesInfo.name[i]);
         strcat(rinex_file_path, ".dat");
         readObsFromFile(rinex_file_path, &obs_temp);
@@ -1092,7 +1128,12 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
 
         //添加s_opath到sp3_load_file_path
         strcpy(sp3_load_file_path, s_opath);
+#ifdef LINUX
+        strcat(sp3_load_file_path, "/");
+#elif defined(WINDOWS)
         strcat(sp3_load_file_path, "\\");
+#else
+#endif
         //在字符串中添加"20"
         strcat(sp3_load_file_path, "20");
         //在字符串sp3_load_file_path中添加doy的前2个字符，如doy=10001，则添加“10”
@@ -1127,8 +1168,13 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
         char sav_P4_filename[256];
         //添加m_p4_path到sav_P4_filename
         strcpy(sav_P4_filename, m_p4_path);
+#ifdef LINUX
+        strcat(sav_P4_filename, "/");
+#elif defined(WINDOWS)
         //添加“\\”到sav_P4_filename
         strcat(sav_P4_filename, "\\");
+#else
+#endif
         //先将site的值赋给sav_P4_filename
         strcat(sav_P4_filename, site);
         //再取doy赋给sav_P4_filename
@@ -1839,9 +1885,9 @@ void removeSameElementAndReturn_Char(char** vector, char*** new_vector, int vect
     }
 
     //再申请一个新的数组，用于存储去掉空字符串后的数组
-    char** new_vector_temp_2 = (char **) malloc(new_size_temp * sizeof(char));
+    char** new_vector_temp_2;
+    malloc_Char_Vector(&new_vector_temp_2, new_size_temp, 64);
     for (int i = 0; i < new_size_temp; i++){
-        new_vector_temp_2[i] = (char *) malloc(64 * sizeof(char));
         strcpy(new_vector_temp_2[i], new_vector_temp[i]);
     }
 
@@ -1850,17 +1896,7 @@ void removeSameElementAndReturn_Char(char** vector, char*** new_vector, int vect
     //修改外部new_size的值
     *new_size = new_size_temp;
 
-//    //释放new_vector_temp的内存
-//    for (int i = 0; i < new_size_temp; i++){
-//        free(new_vector_temp[i]);
-//    }
-//    free(new_vector_temp);
-//
-//    //释放new_vector_temp_2的内存
-//    for (int i = 0; i < new_size_temp; i++){
-//        free(new_vector_temp_2[i]);
-//    }
-//    free(new_vector_temp_2);
+    free(new_vector_temp);
 }
 
 void removeSameElementAndReturn_Int(int* vector, int** new_vector, int vector_size, int* new_size){
@@ -1906,8 +1942,13 @@ char* get_load_sp3_pathname(int doy){
     //将s_opath赋给filepathname
     strcpy(filepathname, s_opath);
 
+#ifdef LINUX
+    strcat(filepathname, "/");
+#elif defined(WINDOWS)
     //加入"\\"
     strcat(filepathname, "\\");
+#else
+#endif
 
     //加入"20"
     strcat(filepathname, "20");
@@ -2252,7 +2293,7 @@ void get_Coef(double** M_col, int st, int ed, double b, double s, int order){
 }
 
 double* get_legendre(int n, double x){
-    double* P = (double *) malloc(n * sizeof(double));
+    double* P = (double *) malloc((n+1) * sizeof(double));
     for (int i = 0; i < n+1; i++){
         //如果i为奇数
         if (i%2 == 1) {
@@ -2519,8 +2560,13 @@ char* generate_final_result_file_pathname(int doy, const char* type, const char*
     char* pathname = (char *) malloc(128 * sizeof(char));
     //添加m_result_path
     strcpy(pathname, m_result_path);
+#ifdef LINUX
+    strcat(pathname, "/");
+#elif defined(WINDOWS)
     //添加"\\"
     strcat(pathname, "\\");
+#else
+#endif
     //添加type
     strcat(pathname, type);
     //添加doy

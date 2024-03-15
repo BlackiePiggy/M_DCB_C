@@ -1,3 +1,1 @@
-"E:\JetBrain\CLion 2023.3.2\bin\cmake\win\x64\bin\cmake.exe" -E rm -f CMakeFiles\M_DCB_C.dir/objects.a
-"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\ar.exe" qc CMakeFiles\M_DCB_C.dir/objects.a @CMakeFiles\M_DCB_C.dir\objects1.rsp
-"E:\JetBrain\CLion 2023.3.2\bin\mingw\bin\g++.exe" -g -Wl,--whole-archive CMakeFiles\M_DCB_C.dir/objects.a -Wl,--no-whole-archive -o M_DCB_C.exe -Wl,--out-implib,libM_DCB_C.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\M_DCB_C.dir\linkLibs.rsp
+/usr/bin/c++ -g CMakeFiles/M_DCB_C.dir/main.cpp.o CMakeFiles/M_DCB_C.dir/ReadFile.cpp.o -o M_DCB_C   -L/home/jason/projects/M_DCB_C/lib/OpenBLAS/lib  -L/usr/local/lib  -Wl,-rpath,/home/jason/projects/M_DCB_C/lib/OpenBLAS/lib:/usr/local/lib -lspqr -lccolamd -lcholmod -lsuitesparseconfig -lamd -lcamd -lopenblas 
