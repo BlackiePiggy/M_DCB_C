@@ -86,12 +86,6 @@
 				</MakeCommands>
 			</Target>
 		</Build>
-		<Unit filename="/home/jason/projects/M_DCB_C/ReadFile.cpp">
-			<Option target="M_DCB_C"/>
-		</Unit>
-		<Unit filename="/home/jason/projects/M_DCB_C/ReadFile.h">
-			<Option target="M_DCB_C"/>
-		</Unit>
 		<Unit filename="/home/jason/projects/M_DCB_C/main.cpp">
 			<Option target="M_DCB_C"/>
 		</Unit>

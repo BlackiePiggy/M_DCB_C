@@ -1,6 +1,4 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/M_DCB_C.dir/ReadFile.cpp.o"
-  "CMakeFiles/M_DCB_C.dir/ReadFile.cpp.o.d"
   "CMakeFiles/M_DCB_C.dir/main.cpp.o"
   "CMakeFiles/M_DCB_C.dir/main.cpp.o.d"
   "M_DCB_C"

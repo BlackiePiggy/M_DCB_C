@@ -115,7 +115,6 @@ void appendDoubleToVector(double **arr, int *size, double value);
 void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int* l_row_number, int sN_row_number);
 void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size);
 double* leastSquaresSolve(double** B_data, double* L_data, int rows, int cols);
-//double* leastSquaresSolveSparse(const SparseMatrix<double>& B, const VectorXd& L);
 double* getDCB_R(double* R, int n_r);
 double* getDCB_S(double* R, int n_r, int n_s);
 double* getIONC(double* R, int n_r, int n_s);
@@ -134,15 +133,11 @@ int lsq(const double *A, const double *y, int n, int m, double *x, double *Q);
 int *imat(int n, int m);
 double* flatten(double **arr, int row, int col);
 void inverse(double* A, int N);
-cholmod_sparse* array_to_cholmod_sparse(double** B, int B_row_number, int est_num);
-void convertToCholmodSparse(double** B, int B_row_number, int est_num, cholmod_common* c, cholmod_sparse** A);
 void sort_filenames(char *files[], int count);
 int compare(const void *a, const void *b);
 int strnatcmp(const char *a, const char *b);
-void convertToCholmodDense(double* dense_array, int size, cholmod_common* cc, cholmod_dense** dense_matrix);void convertToCholmodDense(double* dense_array, int size, cholmod_common* cc, cholmod_dense** dense_matrix);
-void print_cholmod_dense(cholmod_dense *A, cholmod_common *c);
-void printCholmodSparse(cholmod_sparse* A);
-cholmod_triplet* convert_to_triplet(double** B, int rows, int cols, cholmod_common *cc);
+
+
 double* solve_least_squares(double** B, double* l, int B_row_num, int B_col_num, int l_row_num) ;
 
 // -----------------------------Main--------------------------------------
@@ -2498,9 +2493,9 @@ char* generate_final_result_file_pathname(int doy, const char* type, const char*
     //添加type
     strcat(pathname, type);
     //添加doy
-    char doy_str[3];
-    snprintf(doy_str, sizeof(doy_str), "%d", doy);
-    strncat(pathname, doy_str, 2);
+    char doy_str[5];
+    sprintf(doy_str, "%d", doy);
+    strcat(pathname, doy_str);
     //添加".txt"
     strcat(pathname, ".txt");
 
@@ -2793,100 +2788,6 @@ int compare(const void *a, const void *b) {
 // 对字符串数组进行自然排序（比较两个字符串，实现数字的自然排序，part3）
 void sort_filenames(char *files[], int count) {
     qsort(files, count, sizeof(char*), compare);
-}
-
-// 将一维double数组转换为cholmod_dense
-void convertToCholmodDense(double* dense_array, int size, cholmod_common* cc, cholmod_dense** dense_matrix) {
-    // Start CHOLMOD
-    cholmod_l_start(cc);
-
-    // Allocate memory for the dense matrix
-    *dense_matrix = cholmod_l_allocate_dense(size, 1, size, CHOLMOD_REAL, cc);
-
-    // Copy data from the array to the dense matrix
-    memcpy((*dense_matrix)->x, dense_array, sizeof(double) * size);
-
-    // Free memory and finish CHOLMOD
-    cholmod_l_finish(cc);
-}
-
-void print_cholmod_dense(cholmod_dense *A, cholmod_common *c) {
-    int i, j;
-    double *x = (double *)A->x; // Assuming the matrix stores double-precision values
-    int nrows = A->nrow;
-    int ncols = A->ncol;
-
-    for (i = 0; i < nrows; i++) {
-        for (j = 0; j < ncols; j++) {
-            printf("No.%d: %lf ", i+1 ,x[i + j*nrows]); // Accessing element in column-major order
-        }
-        printf("\n");
-    }
-}
-
-void printCholmodSparse(cholmod_sparse* A) {
-    printf("Cholmod Sparse Matrix Information:\n");
-    printf("Number of rows: %d\n", A->nrow);
-    printf("Number of columns: %d\n", A->ncol);
-    printf("Number of non-zero elements: %d\n", A->nzmax);
-
-    printf("\nData:\n");
-
-    int* col_pointers = (int*)A->p;
-    int* row_indices = (int*)A->i;
-    double* values = (double*)A->x;
-
-    printf("Values:\n");
-    for (int i = 0; i < A->nzmax; ++i) {
-        printf("%lf ", values[i]);
-    }
-    printf("\n");
-
-    printf("Row indices:\n");
-    for (int i = 0; i < A->nzmax; ++i) {
-        printf("%d ", row_indices[i]);
-    }
-    printf("\n");
-
-    printf("Column pointers:\n");
-    for (int i = 0; i <= A->ncol; ++i) {
-        printf("%d ", col_pointers[i]);
-    }
-    printf("\n");
-}
-
-// 定义函数将C语言中的二维数组转换为cholmod_triplet类型的对象
-cholmod_triplet* convert_to_triplet(double** B, int rows, int cols, cholmod_common *cc) {
-    cholmod_triplet *T;
-    int i, j, nnz = 0;
-
-    // 计算非零元素的数量
-    for (i = 0; i < rows; i++) {
-        for (j = 0; j < cols; j++) {
-            if (B[i][j] != 0) {
-                nnz++;
-            }
-        }
-    }
-
-    // 创建cholmod_triplet对象
-    T = cholmod_l_allocate_triplet(rows, cols, nnz, 1, CHOLMOD_REAL, cc);
-
-    // 填充cholmod_triplet对象
-    nnz = 0;
-    for (i = 0; i < rows; i++) {
-        for (j = 0; j < cols; j++) {
-            if (B[i][j] != 0) {
-                ((int*)(T->i))[nnz] = i;
-                ((int*)(T->j))[nnz] = j;
-                ((double*)(T->x))[nnz] = B[i][j];
-                nnz++;
-            }
-        }
-    }
-
-    // 返回cholmod_triplet对象
-    return T;
 }
 
 // 定义函数来转换二维数组B和一维数组l，并计算最小二乘解

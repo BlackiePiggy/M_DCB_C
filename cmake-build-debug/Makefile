@@ -48,10 +48,10 @@ cmake_force:
 SHELL = /bin/sh
 
 # The CMake executable.
-CMAKE_COMMAND = /home/jason/Softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake
+CMAKE_COMMAND = /home/jason/softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake
 
 # The command to remove a file.
-RM = /home/jason/Softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake -E rm -f
+RM = /home/jason/softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
@@ -68,7 +68,7 @@ CMAKE_BINARY_DIR = /home/jason/projects/M_DCB_C/cmake-build-debug
 # Special rule for the target edit_cache
 edit_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "No interactive CMake dialog available..."
-	/home/jason/Softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake -E echo No\ interactive\ CMake\ dialog\ available.
+	/home/jason/softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake -E echo No\ interactive\ CMake\ dialog\ available.
 .PHONY : edit_cache
 
 # Special rule for the target edit_cache
@@ -78,7 +78,7 @@ edit_cache/fast: edit_cache
 # Special rule for the target rebuild_cache
 rebuild_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running CMake to regenerate build system..."
-	/home/jason/Softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake --regenerate-during-build -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+	/home/jason/softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake --regenerate-during-build -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : rebuild_cache
 
 # Special rule for the target rebuild_cache
@@ -129,30 +129,6 @@ M_DCB_C/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/M_DCB_C.dir/build.make CMakeFiles/M_DCB_C.dir/build
 .PHONY : M_DCB_C/fast
 
-ReadFile.o: ReadFile.cpp.o
-.PHONY : ReadFile.o
-
-# target to build an object file
-ReadFile.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/M_DCB_C.dir/build.make CMakeFiles/M_DCB_C.dir/ReadFile.cpp.o
-.PHONY : ReadFile.cpp.o
-
-ReadFile.i: ReadFile.cpp.i
-.PHONY : ReadFile.i
-
-# target to preprocess a source file
-ReadFile.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/M_DCB_C.dir/build.make CMakeFiles/M_DCB_C.dir/ReadFile.cpp.i
-.PHONY : ReadFile.cpp.i
-
-ReadFile.s: ReadFile.cpp.s
-.PHONY : ReadFile.s
-
-# target to generate assembly for a file
-ReadFile.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/M_DCB_C.dir/build.make CMakeFiles/M_DCB_C.dir/ReadFile.cpp.s
-.PHONY : ReadFile.cpp.s
-
 main.o: main.cpp.o
 .PHONY : main.o
 
@@ -186,9 +162,6 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... M_DCB_C"
-	@echo "... ReadFile.o"
-	@echo "... ReadFile.i"
-	@echo "... ReadFile.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

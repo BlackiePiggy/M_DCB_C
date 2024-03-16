@@ -151,7 +151,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "/home/jason/Softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake"
+			"value" : "/home/jason/softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cmake"
 		},
 		{
 			"name" : "CMAKE_CPACK_COMMAND",
@@ -163,7 +163,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "/home/jason/Softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cpack"
+			"value" : "/home/jason/softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/cpack"
 		},
 		{
 			"name" : "CMAKE_CTEST_COMMAND",
@@ -175,7 +175,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "/home/jason/Softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/ctest"
+			"value" : "/home/jason/softwares/clion-2023.3.4/bin/cmake/linux/x64/bin/ctest"
 		},
 		{
 			"name" : "CMAKE_CXX_COMPILER",
@@ -975,7 +975,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "/home/jason/Softwares/clion-2023.3.4/bin/cmake/linux/x64/share/cmake-3.27"
+			"value" : "/home/jason/softwares/clion-2023.3.4/bin/cmake/linux/x64/share/cmake-3.27"
 		},
 		{
 			"name" : "CMAKE_SHARED_LINKER_FLAGS",

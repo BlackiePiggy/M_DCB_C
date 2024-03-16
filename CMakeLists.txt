@@ -16,8 +16,7 @@ link_directories(${SuiteSparse_DIR}/lib)
 set(CMAKE_CXX_STANDARD 17)
 
 add_executable(M_DCB_C main.cpp
-        ReadFile.cpp
-        ReadFile.h)
+)
 
 target_link_libraries(M_DCB_C PRIVATE
         spqr
