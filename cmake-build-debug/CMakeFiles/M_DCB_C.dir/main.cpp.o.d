@@ -62,7 +62,7 @@ CMakeFiles/M_DCB_C.dir/main.cpp.o: /home/jason/projects/M_DCB_C/main.cpp \
  /usr/include/linux/limits.h \
  /usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h \
  /usr/include/x86_64-linux-gnu/bits/dirent_ext.h /usr/include/string.h \
- /usr/include/strings.h /usr/include/c++/11/math.h \
+ /usr/include/strings.h /usr/lib/gcc/x86_64-linux-gnu/11/include/float.h \
  /usr/include/c++/11/cmath /usr/include/c++/11/bits/cpp_type_traits.h \
  /usr/include/c++/11/ext/type_traits.h /usr/include/math.h \
  /usr/include/x86_64-linux-gnu/bits/math-vector.h \
@@ -99,11 +99,9 @@ CMakeFiles/M_DCB_C.dir/main.cpp.o: /home/jason/projects/M_DCB_C/main.cpp \
  /usr/include/c++/11/tr1/modified_bessel_func.tcc \
  /usr/include/c++/11/tr1/poly_hermite.tcc \
  /usr/include/c++/11/tr1/poly_laguerre.tcc \
- /usr/include/c++/11/tr1/riemann_zeta.tcc \
- /usr/lib/gcc/x86_64-linux-gnu/11/include/float.h \
- /usr/include/c++/11/iostream /usr/include/c++/11/ostream \
- /usr/include/c++/11/ios /usr/include/c++/11/iosfwd \
- /usr/include/c++/11/bits/stringfwd.h \
+ /usr/include/c++/11/tr1/riemann_zeta.tcc /usr/include/c++/11/iostream \
+ /usr/include/c++/11/ostream /usr/include/c++/11/ios \
+ /usr/include/c++/11/iosfwd /usr/include/c++/11/bits/stringfwd.h \
  /usr/include/c++/11/bits/memoryfwd.h /usr/include/c++/11/bits/postypes.h \
  /usr/include/c++/11/cwchar /usr/include/wchar.h \
  /usr/include/x86_64-linux-gnu/bits/wchar.h \
@@ -176,14 +174,10 @@ CMakeFiles/M_DCB_C.dir/main.cpp.o: /home/jason/projects/M_DCB_C/main.cpp \
  /usr/include/c++/11/bits/basic_ios.tcc \
  /usr/include/c++/11/bits/ostream.tcc /usr/include/c++/11/istream \
  /usr/include/c++/11/bits/istream.tcc \
- /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/cblas.h \
- /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/openblas_config.h \
- /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/lapacke.h \
  /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/lapack.h \
  /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/lapacke_mangling.h \
  /usr/include/inttypes.h /usr/include/c++/11/complex \
  /usr/include/c++/11/sstream /usr/include/c++/11/bits/sstream.tcc \
- /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/lapack.h \
  /usr/local/include/suitesparse/cholmod.h \
  /usr/local/include/suitesparse/SuiteSparse_config.h \
  /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h \
@@ -191,7 +185,7 @@ CMakeFiles/M_DCB_C.dir/main.cpp.o: /home/jason/projects/M_DCB_C/main.cpp \
  /usr/lib/gcc/x86_64-linux-gnu/11/include/syslimits.h \
  /usr/include/limits.h /usr/include/x86_64-linux-gnu/bits/posix2_lim.h \
  /usr/include/x86_64-linux-gnu/bits/xopen_lim.h \
- /usr/include/x86_64-linux-gnu/bits/uio_lim.h \
+ /usr/include/x86_64-linux-gnu/bits/uio_lim.h /usr/include/c++/11/math.h \
  /usr/local/include/suitesparse/SuiteSparse_config.h \
  /usr/local/include/suitesparse/SuiteSparseQR_C.h \
  /usr/local/include/suitesparse/cholmod.h \

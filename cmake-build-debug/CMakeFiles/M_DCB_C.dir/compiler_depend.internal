@@ -3,11 +3,8 @@
 
 CMakeFiles/M_DCB_C.dir/main.cpp.o
  /home/jason/projects/M_DCB_C/main.cpp
- /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/cblas.h
  /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/lapack.h
- /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/lapacke.h
  /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/lapacke_mangling.h
- /home/jason/projects/M_DCB_C/lib/OpenBLAS/include/openblas_config.h
  /usr/include/alloca.h
  /usr/include/asm-generic/errno-base.h
  /usr/include/asm-generic/errno.h
