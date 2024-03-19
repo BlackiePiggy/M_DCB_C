@@ -1,3 +1,6 @@
+// --------------------------------------------------------------------------
+// -----------------------------Include--------------------------------------
+// --------------------------------------------------------------------------
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -9,14 +12,30 @@
 #include <cholmod.h>
 #include <SuiteSparse_config.h>
 #include <SuiteSparseQR_C.h>
-#include <time.h>
 
+// --------------------------------------------------------------------------
+// ---------------------------------宏---------------------------------------
+// --------------------------------------------------------------------------
 // 宏定义 Linux
 #define LINUX
 
+#ifdef LINUX
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#elif defined(WINDOWS)
+#include <windows.h>
+#endif
+
+// ---------------------------------------------------------------------------
+// -----------------------------Namespace-------------------------------------
+// ---------------------------------------------------------------------------
 //using namespace Eigen;
 using namespace std;
 
+// ---------------------------------------------------------------------------
+// -----------------------------结构体定义--------------------------------------
+// ---------------------------------------------------------------------------
 // 假设 SitesInfo 结构体
 typedef struct {
     char** name;
@@ -38,7 +57,9 @@ typedef struct {
     int* doy;
 } SDCB_REF;
 
-// -----------------------------Setting--------------------------------------
+// -------------------------------------------------------------------------
+// -----------------------------全局变量--------------------------------------
+// -------------------------------------------------------------------------
 const char* r_ipath = "/home/jason/projects/M_DCB_C/RINEX_files";// rinex
 const char* r_opath = "/home/jason/projects/M_DCB_C/RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
 const char* s_ipath = "/home/jason/projects/M_DCB_C/SP3_files";// sp3
@@ -56,13 +77,13 @@ double f2 = 1227.6e6;
 double pi = 3.14159265358979323846;
 double c = 299792458;
 int period = 2;
-
-//全局变量
 SitesInfo sitesInfo;
 Obs obs;
 SDCB_REF sDCB_REF;
 
-// -----------------------------Function--------------------------------------
+// --------------------------------------------------------------------------
+// -----------------------------函数声明--------------------------------------
+// --------------------------------------------------------------------------
 int countFilesInDirectory(const char *folderPath);
 void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs);
 void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType);
@@ -78,7 +99,6 @@ int find_ionex_index(int doy, char** ionex_filenames, int ionex_file_num);
 int find_rinex_indexs(int* index, int doy);
 void read_single_ionex(const char* ionex_file, int i, char** sites_name, int doy_num, SDCB_REF sDCB_REF, double* DCB_rec);
 void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag);
-void writeToFile(char* filename, Obs* obs, int num_sites);
 void writeObsToFile(const char* filename, Obs* obs, int p1Rows, int p2Rows, int l1Rows, int l2Rows, int cols);
 void readObsFromFile(const char* filename, Obs* obs);
 void save_sp3_To_Bin_File(double ***sate_xyz, int dim1, int dim2, int dim3, const char *filename);
@@ -128,47 +148,69 @@ int compare(const void *a, const void *b);
 int strnatcmp(const char *a, const char *b);
 double* solve_least_squares(double** B, double* l, int B_row_num, int B_col_num, int l_row_num) ;
 
-// -----------------------------Main--------------------------------------
-int main() {
-    // 开始计时
-    clock_t start, end;
-    double cpu_time_used;
-    start = clock();
+// 不同平台的函数声明
+#ifdef LINUX
+void CreateFolderIfNotExist_Linux(const char* folderPath);
+#elif defined(WINDOWS)
+void CreateFolderIfNotExist_WINDOWS(const char* folderPath);
+#endif
 
-    setbuf(stdout, 0);//开启debug时console也有输出信息
+// -----------------------------------------------------------------------
+// -----------------------------Main--------------------------------------
+// -----------------------------------------------------------------------
+int main() {
+    setbuf(stdout, 0); //开启debug时console也有输出信息
     // 打印基本信息
     printf("elevation angle threshold(unit:degree)(10 degree is recommended): %d\n", lim);
     printf("the order of spheric harmonic function (4 order is recommended): %d\n", order);
     printf("MDCB(multi-stations) starts running!\n");
 
-    // Step one: read rinex files
+    // 创建文件夹，linux和windows创建方法不一样
+#ifdef LINUX
+    CreateFolderIfNotExist_Linux(r_opath);
+    CreateFolderIfNotExist_Linux(s_opath);
+    CreateFolderIfNotExist_Linux(i_opath);
+    CreateFolderIfNotExist_Linux(m_p4_path);
+    CreateFolderIfNotExist_Linux(m_result_path);
+#elif defined(WINDOWS)
+    CreateFolderIfNotExist_WINDOWS(r_opath);
+    CreateFolderIfNotExist_WINDOWS(s_opath);
+    CreateFolderIfNotExist_WINDOWS(i_opath);
+    CreateFolderIfNotExist_WINDOWS(m_p4_path);
+    CreateFolderIfNotExist_WINDOWS(m_result_path);
+#endif
+
+    // Step one----read rinex files
     read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
 
-    // Step two--------------------Read SP3 files--------------------------------
+    // Step two----Read SP3 files
     read_sp3(s_ipath, s_opath);
 
-    // Step three------------------Read ionex files------------------------------
+    // Step three----Read ionex files
     read_ionex(i_ipath, i_opath, &sitesInfo, sDCB_REF);
 
-    // Step four-------------------Ionosphere Observations-----------------------
+    // Step four----Get smoothed P4
     get_smoothed_P4(sitesInfo, (lim*pi/180), 0);
 
-    // Step Five-------------------DCB Estimation--------------------------------
+    // Step Five----DCB Estimation
     DCB_Estimation();
-
-    // 结束计时
-    end = clock();
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("程序运行时间：%f 秒\n", cpu_time_used);
 
     return 0;
 }
 
+// ------------------------------------------------------------------------
+// -----------------------------函数区--------------------------------------
+// ------------------------------------------------------------------------
+
+// 功能描述：读取rinex文件，把P1,P2,L1,L2观测数据存为二进制文件，测站相关信息存入psitesInfo结构体中
+// 入参：r_ipath —— 存放rinex文件夹路径； r_opath —— 输出观测数据文件的文件夹路径；
+//      psitesInfo —— 事先定义好的存放测站信息的结构体； pobs —— 事先定义好的存放观测信息的结构体
+// 出参：无
 void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs) {
+    printf("----------Step 1: starting read rinex files!----------\n");
     DIR *dir;
     FILE *file;
     struct dirent *entry;
-    //int counter;
 
     // 打开文件夹
     dir = opendir(r_ipath);
@@ -179,9 +221,9 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
 
     printf("Starting Reading Rinex Files!\n");
 
-    r_file_num = countFilesInDirectory(r_ipath);// 计算文件数
+    r_file_num = countFilesInDirectory(r_ipath);    // 计算rinex文件数
     char** fileNames;   //存放rinex文件夹下的所有文件名
-    malloc_Char_Vector(&fileNames, r_file_num, 256);    //分配空间
+    malloc_Char_Vector(&fileNames, r_file_num, 256);    //为fileNames分配空间
     getFileNamesInDirectory(r_ipath, fileNames, r_file_num);    //获取rinex文件夹下的所有文件名
     sort_filenames(fileNames, r_file_num);  //对fileNames文件名进行自然排序
 
@@ -191,56 +233,59 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
     malloc_Double_2D(&psitesInfo->coor, r_file_num, 3);
     malloc_Double_Vector(&psitesInfo->RDCB_REF, r_file_num);
 
-    //为obs结构体内的数组分配内存，每个变量均需要一个(2880,32)尺寸的二维double数组
+    // 为obs结构体内的数组分配内存，每个变量均需要一个(2880,32)尺寸的二维double数组
     malloc_Double_2D(&pobs->P1, 2880, 32);  // 分配内存空间给 P1
     malloc_Double_2D(&pobs->P2, 2880, 32); // 分配内存空间给 P2
     malloc_Double_2D(&pobs->L1, 2880, 32); // 分配内存空间给 L1
     malloc_Double_2D(&pobs->L2, 2880, 32); // 分配内存空间给 L2
 
-    int index = 0;
-    char doy[4];
-    char sub_str[3];
-    //循环fileNames数组，
+    char doy[4];    //用于存放文件名中的doy部分
+    char sub_str[3];    //用于存放文件名中的
+    // 循环rinex文件名，取出测站名和doy存入psitesInfo里（读sitesInfo）
     for (int i = 0; i < r_file_num; i++) {
-        strcpy(psitesInfo->name[i], fileNames[i]);
+        strcpy(psitesInfo->name[i], fileNames[i]);  //fileNames不处理，直接存入name
         //将fileNames[i]的第10到11个字符赋值给sub_str，再将fileNames[i]的第5到7个字符赋值给doy
+        //例如，文件名叫gope0010.10o，sub_str就是10，doy就是001
         strncpy(sub_str, &fileNames[i][9], 2);
         strncpy(doy, &fileNames[i][4], 3);
-        sub_str[2] = '\0';
-        doy[3] = '\0';  //这一步必须加入字符串标志，否则会出问题
-        psitesInfo->doy[i] = 1000 * atoi(sub_str) + atoi(doy);
+        sub_str[2] = '\0';  //这一步必须加入字符串结束标志，否则会出问题
+        doy[3] = '\0';  //这一步必须加入字符串结束标志，否则会出问题
+        psitesInfo->doy[i] = 1000 * atoi(sub_str) + atoi(doy);  //计算真正的doy，存入doy
     }
-//    //打印文件名和doy
+    // 释放fileNames的内存
+    free(fileNames);
+//    //打印psitesInfo中存好的测站名和doy，用于debug
 //    for (int i = 0; i < r_file_num; i++) {
 //        printf("File No.%d :%s, DOY: %d\n", i + 1, psitesInfo->name[i], psitesInfo->doy[i]);
 //    }
 
-    char line[256]; // 假设一行最多包含256个字符
-    char filename[256];
+    char line[256]; // 假设读文件过程中一行最多包含256个字符
+    char filename[256]; //待读的文件名称
     int obst_n; char **obst;
     double h; double m; double s; int ep = 0;
     int *loc;
 
+    // 循环读取每个rinex（读obs观测值）
     for (int i = 0; i < r_file_num; i++) {
-        printf("Reading File No.%d :%s\n", i + 1, psitesInfo->name[i]);
-        // 打开文件
+        //printf("Reading File No.%d :%s\n", i + 1, psitesInfo->name[i]);
+
+        //拼接部分读取文件的路径
         strcpy(filename, r_ipath);
 #ifdef LINUX
-        strcat(filename, "/");
+        strcat(filename, "/");  //Linux文件系统和windows文件路径符号不一样
 #elif defined(WINDOWS)
         strcat(filename, "\\");
-#else
 #endif
-        strcat(filename, psitesInfo->name[i]);
-        file = fopen(filename, "r");
+        strcat(filename, psitesInfo->name[i]);  //拼接待读文件完整路径
+        file = fopen(filename, "r");    // 打开文件
         if (file == NULL) {
             perror("Can't Open File");
         }
 
+        // 逐行读取
         while (fgets(line, sizeof(line), file)) {
             // -----get receivers coordinates-----------
             if (strstr(line, "APPROX POSITION XYZ") != NULL) {
-                //printf("%s", line);
                 double x, y, z;
                 // 将行解析成三个双精度浮点数
                 if (sscanf(line, "%lf %lf %lf", &x, &y, &z) == 3) {
@@ -251,8 +296,6 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
             }
             //-----get the GPS observables' types------
             if (strstr(line, "# / TYPES OF OBSERV") != NULL){
-                //printf("%s", line);
-
                 if(sscanf(line, "%d", &obst_n) == 1){
                     if (obst_n > 9){
                         printf("obst_n > 9!!!!!");
@@ -288,6 +331,8 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                             printf("P1 and P2 not found!\n");
                         }
                     }
+                    // 释放obst和loc的内存
+                    free(obst);
                 }
             }
             //----start get GPS observables------------
@@ -316,7 +361,6 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                     }
                     //---get satellite number----
 
-                    //debug专用，如果line的值等于下面的字符串，则打印这行内容
                     int nsat; int *sv_G;
                     //取出line的第31到32个字符，转换成int类型，再赋值给nsat
                     if (sscanf(line + 30, "%2d", &nsat) == 1){
@@ -372,10 +416,6 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                                     }
                                     //取出line的第15*(j+1)-15至第15*(j+1)-2个字符，转换成double类型，再赋值给obs_temp[j]
                                     if (sscanf(line + 16*k, "%14lf", &obs_temp[k]) == 1){
-//                                        //如果obs_temp[k]的前8位数等于25789317，则打印这行内容
-//                                        if (obs_temp[k] == 25789317.7094){
-//                                            printf("ep: %d\n", ep);
-//                                        }
                                     }
                                 }
                             }
@@ -416,63 +456,45 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         pobs->L2[ep-1][sv_G[j]-1]=obs_temp[loc[1]];
                         pobs->P1[ep-1][sv_G[j]-1]=obs_temp[loc[2]];
                         pobs->P2[ep-1][sv_G[j]-1]=obs_temp[loc[3]];
+
+                        free(obs_temp);
                     }
+                    // 释放sv_G的内存
+                    free(sv_G);
                 }
+                free(loc);
             }
         }
-        // 关闭文件
+        // 单个文件读取结束，关闭文件
         fclose(file);
 
-        char sav_filename[256]; // 假设文件名长度不超过256个字符
         char sav_dat_filename[256]; // 假设文件名长度不超过256个字符
 
         //生成文件名，路径为当前路径下的RINEX_output_files文件夹
-        strcpy(sav_filename, r_opath);
+        strcpy(sav_dat_filename, r_opath);
 #ifdef LINUX
-        strcat(sav_filename, "/");
+        strcat(sav_dat_filename, "/");
 #elif defined(WINDOWS)
-        strcat(sav_filename, "\\");
+        strcat(sav_dat_filename, "\\");
 #else
 #endif
-        strcat(sav_filename, psitesInfo->name[i]);
-        strcpy(sav_dat_filename, sav_filename);
-        strcat(sav_filename, ".csv");
+        strcat(sav_dat_filename, psitesInfo->name[i]);
         strcat(sav_dat_filename, ".dat");
 
-        // Open file for writing
-//        FILE *outfile = fopen(sav_filename, "w");
-//        if (outfile == NULL) {
-//            fprintf(stderr, "Error opening file for writing\n");
-//        }
-
-        // Write each array to file with labels
-//        writeArrayToFileWithLabels(outfile, pobs->P1, "P1");
-//        writeArrayToFileWithLabels(outfile, pobs->P2, "P2");
-//        writeArrayToFileWithLabels(outfile, pobs->L1, "L1");
-//        writeArrayToFileWithLabels(outfile, pobs->L2, "L2");
-
-        //writeToFile(sav_dat_filename, pobs, 1);
         writeObsToFile(sav_dat_filename, pobs, 2880, 2880, 2880, 2880, 32);
 
-        // Close file
-//        fclose(outfile);
-
-        printf("Data written to file successfully.\n");
+        //printf("Data %s written to file successfully.\n", sav_dat_filename);
 
     }
-    //将obs数据以dat的格式存储
-    //writeToFile("D:\\projects\\M_DCB_C\\RINEX_output_files\\sites_info.dat", &sitesInfo, r_file_num);
-
-    printf("Step one: completings !\n");
+    printf("----------Step 1: completings !----------\n");
 }
 
 void read_sp3(const char* s_ipath, const char* s_opath){
+    printf("----------Step 2: starting read SP3 files!----------\n");
     DIR *dir;
     FILE *file;
     struct dirent *entry;
     int sp3_file_num;
-
-    printf("Reading SP3 Files!\n");
 
     // 计算sp3_files文件夹中文件数
     sp3_file_num = countFilesInDirectory(s_ipath);
@@ -581,11 +603,20 @@ void read_sp3(const char* s_ipath, const char* s_opath){
 
         //saveSp3ToCSV(sate_xyz, sav_filename); //以csv格式存储sp3文件
         save_sp3_To_Bin_File(sate_xyz, 3, 2880, 32, sav_filename);  //以二进制格式存储sp3文件
-    }
-}
 
+        free(pre_xyz);
+        free(cur_xyz);
+        free(next_xyz);
+        free(sate_xyz);
+        free(DOY);
+    }
+    free(sp3_filenames);
+    printf("----------Step 2: completings !----------\n");
+}
+// free到这儿了
 // 读取ionex文件，相关结果存放在sitesInfo.RDCB_REF和sDCB_REF结构体中
 void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo, SDCB_REF sdcb_ref){
+    printf("----------Step 3: starting read ionex files!----------\n");
     int n = r_file_num;
     int new_size = 0;
     int* doys; //去重的DOY存放在doys数组中，大小为new_size
@@ -621,7 +652,6 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
     //给ionex_filenames申请ionex_file_num个char*类型的内存,每个char不超过32个字符
     malloc_Char_Vector(&ionex_filenames, ionex_file_num, 32);
 
-//    get_filenames(i_ipath, ionex_filenames,ionex_file_num);
     getFileNamesInDirectory(i_ipath, ionex_filenames, ionex_file_num);
     sort_filenames(ionex_filenames, ionex_file_num);
 
@@ -665,7 +695,14 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
         }
 
         sdcb_ref.doy[i] = doys[i];
+
+        free(index2);
+        free(sites_name);
     }
+    free(DCB_rec);
+    free(ionex_filenames);
+    free(doys);
+    printf("----------Step 3: completings !----------\n");
 }
 
 // 文件夹内文件数
@@ -696,7 +733,10 @@ int countFilesInDirectory(const char *folderPath) {
     return counter;
 }
 
-// Function to write array to file with labels
+// 功能描述：只适用于将obs文件写入csv文件
+// 入参：*file —— 存到什么文件路径下的什么文件； *array —— 待存储的二维数组；
+//      * dataType —— 数据标签，自己定义；
+// 出参：无
 void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType) {
     // 写入列标签
     fprintf(file, "%s_Epoch", dataType); // 假设第一列为时间戳
@@ -715,6 +755,9 @@ void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType
     }
 }
 
+// 功能描述：解析sp3文件，将x、y、z上的2880*32都存入xyz三维数组，每个维度分别代表x、y、z
+// 入参：* sp3_file —— sp3文件完整路径； ***xyz —— 待存放精密星历xyz坐标的三维数组
+// 出参：无
 void parse_sp3(char* sp3_file, double ***xyz){
     FILE *file;
     char line[256];
@@ -755,9 +798,14 @@ void parse_sp3(char* sp3_file, double ***xyz){
     fclose(file);
 }
 
+// 功能描述：插值，一天的精密坐标每15min一组数据，一天的数据量就是(3*96*32)，结合前一天、后一天的精密坐标，
+//         插值生成(3*2880*32)尺寸的精密坐标（每30s一组数据）。目的是与rinex观测值数据量对齐
+// 入参：***pre_xyz —— 上一时刻的xyz坐标； ***cur_xyz —— 当前时刻的xyz坐标； ***next_xyz —— 下一时刻的xyz坐标；
+//      ***sate_xyz —— 插值后的xyz坐标
+// 出参：无
 void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***sate_xyz){
-    double ***cur_xyz_etd;
-    malloc_double_3D(&cur_xyz_etd, 3, 105, 32);
+    double ***cur_xyz_etd;  //当前xyz的扩展数组
+    malloc_double_3D(&cur_xyz_etd, 3, 105, 32); //cur_xyz_etd的尺寸为3*105*32
 
     extend_matrix(0, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//x_extend
     extend_matrix(1, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//y_extend
@@ -806,14 +854,25 @@ void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, do
                 sate_xyz[1][30*(j+1)-30+k][i] = y0[k];
                 sate_xyz[2][30*(j+1)-30+k][i] = z0[k];
             }
+
+            free(x0);
+            free(y0);
+            free(z0);
         }
     }
 
+    free(cur_xyz_etd);
+
 }
 
+// 功能描述：获得一个扩展矩阵，从矩阵pre_xyz[0]中选取第93到第96行的所有列，形成一个子矩阵。将子矩阵与矩阵cur_xyz[0]进行垂直拼接，
+//         即将子矩阵放在cur_xyz[0]的上方。将矩阵next_xyz[0]中的第1到第5行的所有列与前一步得到的结果进行垂直拼接，即将next_xyz[0]
+//         的前5行放在前一步得到的结果的下方。
+// 入参：***pre_xyz —— 上一时刻的xyz坐标； ***cur_xyz —— 当前时刻的xyz坐标； ***next_xyz —— 下一时刻的xyz坐标；
+//      ***xyz_etd —— 扩展后的矩阵
+// 出参：无
 void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***xyz_etd){
-    //从矩阵pre_xyz[0]中选取第93到第96行的所有列，形成一个子矩阵。将子矩阵与矩阵cur_xyz[0]进行垂直拼接，即将子矩阵放在cur_xyz[0]的上方。将矩阵next_xyz[0]中的第1到第5行的所有列与前一步得到的结果进行垂直拼接，即将next_xyz[0]的前5行放在前一步得到的结果的下方。
-    // 先填充pre_xyz的部分
+    //先填充pre_xyz的部分
     for (int j = 0; j < 4; j++){
         for (int k = 0; k < 32; k++) {
             xyz_etd[dimension][j][k] = pre_xyz[dimension][j+92][k];
@@ -835,7 +894,9 @@ void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double *
     }
 }
 
-// 声明Lagrange插值函数
+// 功能描述：
+// 入参：
+// 出参：无
 double* interp_lag(double* x, double* y, double* x0) {
     int n = 10; // 假设x中有10个点
     int n0 = 30;
@@ -862,6 +923,9 @@ double* interp_lag(double* x, double* y, double* x0) {
     return y0; // 返回计算结果
 }
 
+// 功能描述：通过卫星周和DOW计算当前DOY
+// 入参：G_Week —— 卫星周（GPS周）； Day_of_Week —— 一个卫星周中的第X天
+// 出参：int DOY —— 一年中的第x天
 int* GWeek_2_DOY(int G_Week, int Day_of_Week){
     int *DOY;
     malloc_Int_Vector(&DOY, 2);
@@ -919,7 +983,7 @@ void saveSp3ToCSV(double*** sate_xyz, char* filename) {
     }
 
     fclose(file); // 关闭文件
-    printf("SP3 data successfully saved to %s\n", filename);
+    //printf("SP3 data successfully saved to %s\n", filename);
 }
 
 int find_ionex_index(int doy, char** ionex_filenames, int ionex_file_num){
@@ -1008,6 +1072,7 @@ void read_single_ionex(const char* ionex_file, int i, char** sites_name, int doy
 }
 
 void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
+    printf("----------Step 4: starting get smoothed P4!----------\n");
     //找到去重后的rinex文件列表中与site对应的index
     int new_size = 0;
     char** sites; //去重的DOY存放在doys数组中，大小为new_size
@@ -1022,6 +1087,7 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
     }
 
     removeSameElementAndReturn_Char(sitesOnlyName, &sites, r_file_num, &new_size);
+    free(sitesOnlyName);
 
     for (int j = 1; j < r_file_num; j++){
         //查看doys数组中是否有与psitesInfo->doy[i]相同的元素，若有，则不做任何行为，若无，则将psitesInfo->doy[i]赋值给doys[new_size]，并且new_size加1
@@ -1041,6 +1107,8 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
             sscanf(temp_name, "%4s", sites[new_size]);
             new_size++;
         }
+
+        free(temp_name);
     }
 
     //依次读取每天的rinex参数和sp3参数
@@ -1143,21 +1211,12 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
         strcat(sav_P4_filename, "_P4.dat");
 
         save_P4_To_Bin_File(P4, 2880, 32, sav_P4_filename);//将P4存入文件中
+
+        free(site);
+        free(sate_xyz);
+        free(P4);
     }
-}
-
-// 将结构体数组写入文件
-void writeToFile(char* filename, Obs* obs, int num_sites) {
-    FILE* fp = fopen(filename, "wb");
-    if (fp == NULL) {
-        printf("无法打开文件 %s\n", filename);
-        return;
-    }
-
-    // 写入结构体数组数据到文件中
-    fwrite(obs, sizeof(obs), num_sites, fp);
-
-    fclose(fp);
+    printf("----------Step 4: completings !----------\n");
 }
 
 void writeObsToFile(const char* filename, Obs* obs, int p1Rows, int p2Rows, int l1Rows, int l2Rows, int cols) {
@@ -1711,6 +1770,7 @@ void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filenam
 }
 
 void DCB_Estimation(){
+    printf("----------Step 5: starting DCB Estimation!----------\n");
     //1. 先用一个函数得到一个去重的doy_diff数组
     //2. 然后遍历这个doy_diff数组，对每一个doy，load对应的SP3文件（卫星坐标）
     //3. 将取出的sate_xyz, sitesInfo, doy, SDCB_REF, 和order作为入参传入get_MDCB。返回量包括DCB_R, DCB_S, IONC三个估计量结果数组。
@@ -1728,7 +1788,7 @@ void DCB_Estimation(){
         int DCB_R_size = 0; int DCB_S_size = 0; int IONC_size = 0;
         get_DCB(&DCB_R, &DCB_R_size, &DCB_S, &DCB_S_size, &IONC, &IONC_size,doy, sate_xyz, sitesInfo, sDCB_REF, order);
 
-        printf("Saving DCB_Estimation_result to file...\n");
+
 
         char* DCB_R_final_result_filename = generate_final_result_file_pathname(doy, "DCB_R", m_result_path);
         char* DCB_S_final_result_filename = generate_final_result_file_pathname(doy, "DCB_S", m_result_path);
@@ -1736,8 +1796,11 @@ void DCB_Estimation(){
         write_vector_to_file(DCB_R_final_result_filename, DCB_R, DCB_R_size);
         write_vector_to_file(DCB_S_final_result_filename, DCB_S, DCB_S_size);
         write_vector_to_file(IONC_final_result_filename, IONC, IONC_size);
+//        printf("Successfully saved %s to file\n", DCB_R_final_result_filename);
+//        printf("Successfully saved %s to file\n", DCB_S_final_result_filename);
+//        printf("Successfully saved %s to file\n", IONC_final_result_filename);
     }
-    printf("DCB_Estimation finished.\n");
+    printf("----------Step 5: completings !----------\n");
 }
 
 // 返回一个包含文件夹中文件的名称的字符串数组，注意入参是const char
@@ -2228,6 +2291,7 @@ double* get_legendre(int n, double x){
     return P;
 }
 
+// 函数说明：自己照着Matlab的lagendre函数写的，用不了
 double* legendre(int n, double x){
     double* P; int P_size = 0;
     malloc_Double_Vector(&P, n+1);
@@ -2619,3 +2683,32 @@ double* solve_least_squares(double** B, double* l, int B_row_num, int B_col_num,
 
     return X; // 返回最小二乘解数组
 }
+
+// Linux创建文件
+void CreateFolderIfNotExist_Linux(const char* folderPath) {
+    struct stat st = {0};
+
+    if (stat(folderPath, &st) == -1) {
+        // 文件夹不存在，创建文件夹
+        if (mkdir(folderPath, 0700) == 0) {
+            printf("文件夹%s创建成功。\n",folderPath);
+        } else {
+            printf("文件夹%s创建失败。\n",folderPath);
+        }
+    }
+}
+
+#ifdef WINDOWS
+void CreateFolderIfNotExist(const char* folderPath) {
+    DWORD dwAttrib = GetFileAttributes(folderPath);
+
+    if (dwAttrib == INVALID_FILE_ATTRIBUTES || !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY)) {
+        // 文件夹不存在，创建文件夹
+        if (CreateDirectory(folderPath, NULL)) {
+            printf("文件夹%s创建成功。\n",folderPath);
+        } else {
+            printf("文件夹%s创建失败。\n",folderPath);
+        }
+    }
+}
+#endif
