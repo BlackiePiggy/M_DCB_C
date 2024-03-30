@@ -64,11 +64,14 @@ typedef struct {
 const char* r_ipath = "/home/jason/projects/M_DCB_C/data/2021_029_data/obs";// rinex
 //const char* r_opath = "/home/jason/projects/M_DCB_C/RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
 const char* r_opath = "/home/jason/projects/M_DCB_C/data/2021_029_data/obs_output";
-const char* s_ipath = "/home/jason/projects/M_DCB_C/SP3_files";// sp3
-const char* s_opath = "/home/jason/projects/M_DCB_C/SP3_output_files";//
+//const char* s_ipath = "/home/jason/projects/M_DCB_C/SP3_files";// sp3
+const char* s_ipath = "/home/jason/projects/M_DCB_C/data/2021_029_data/sp3";// sp3
+//const char* s_opath = "/home/jason/projects/M_DCB_C/SP3_output_files";//
+const char* s_opath = "/home/jason/projects/M_DCB_C/data/2021_029_data/sp3_output";// sp3
 const char* i_ipath = "/home/jason/projects/M_DCB_C/IONEX_files";// ionex
 const char* i_opath = "/home/jason/projects/M_DCB_C/IONEX_output_files";// ionex
-const char* m_p4_path = "/home/jason/projects/M_DCB_C/M_P4";// P4
+//const char* m_p4_path = "/home/jason/projects/M_DCB_C/M_P4";// P4
+const char* m_p4_path = "/home/jason/projects/M_DCB_C/data/2021_029_data/M_P4";// P4
 const char* m_result_path = "/home/jason/projects/M_DCB_C/M_Result";// result
 int lim = 10;// el
 int order = 4;// order
@@ -95,7 +98,7 @@ int countFilesInDirectory(const char *folderPath);
 void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs);
 void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType);
 void read_sp3(const char* s_ipath, const char* s_opath);
-void parse_sp3(char* sp3_file, double ***xyz);
+void parse_sp3(char* sp3_file, double ***xyz, const char* Constellation);
 void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***sate_xyz);
 void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***xyz_etd);
 double* interp_lag(double* x, double* y, double* x0);
@@ -155,7 +158,8 @@ int compare(const void *a, const void *b);
 int strnatcmp(const char *a, const char *b);
 double* solve_least_squares(double** B, double* l, int B_row_num, int B_col_num, int l_row_num) ;
 void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs,const char* OBS_type_1, const char* OBS_type_2, const char* Constellation);
-
+void read_sp3_v304(const char* s_ipath, const char* s_opath);
+void get_smoothed_P4_v304(SitesInfo sitesInfo, double z_threshold, int flag);
 
 // 不同平台的函数声明
 #ifdef LINUX
@@ -200,13 +204,15 @@ int main() {
 //    read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
 
     // Step two----Read SP3 files
-    read_sp3(s_ipath, s_opath);
+    read_sp3_v304(s_ipath, s_opath);
+//    read_sp3(s_ipath, s_opath);
 
     // Step three----Read ionex files
     //read_ionex(i_ipath, i_opath, &sitesInfo, sDCB_REF);
 
     // Step four----Get smoothed P4
-    get_smoothed_P4(sitesInfo, (lim*pi/180), 0);
+    get_smoothed_P4_v304(sitesInfo, (lim*pi/180), 0);
+//    get_smoothed_P4(sitesInfo, (lim*pi/180), 0);
 
     // Step Five----DCB Estimation
     DCB_Estimation();
@@ -218,7 +224,7 @@ int main() {
 // -----------------------------函数区--------------------------------------
 // ------------------------------------------------------------------------
 
-// 功能描述：读取rinex文件，把P1,P2,L1,L2观测数据存为二进制文件，测站相关信息存入psitesInfo结构体中
+// 功能描述：读取rinex v2.11文件，把P1,P2,L1,L2观测数据存为二进制文件，测站相关信息存入psitesInfo结构体中
 // 入参：r_ipath —— 存放rinex文件夹路径； r_opath —— 输出观测数据文件的文件夹路径；
 //      psitesInfo —— 事先定义好的存放测站信息的结构体； pobs —— 事先定义好的存放观测信息的结构体
 // 出参：无
@@ -779,7 +785,6 @@ void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psites
     printf("----------Step 1: completings !----------\n");
 }
 
-
 void read_sp3(const char* s_ipath, const char* s_opath){
     printf("----------Step 2: starting read SP3 files!----------\n");
     DIR *dir;
@@ -864,9 +869,9 @@ void read_sp3(const char* s_ipath, const char* s_opath){
         malloc_double_3D(&sate_xyz, 3, 2880, N_SAT);
 
         //pre_xyz[][][],第一个[]代表x,y,z坐标，第二个[]代表行（时间），第三个[]代表列（卫星编号）
-        parse_sp3(pre_file_name, pre_xyz);
-        parse_sp3(cur_file_name, cur_xyz);
-        parse_sp3(next_file_name, next_xyz);
+        parse_sp3(pre_file_name, pre_xyz, Constellation);
+        parse_sp3(cur_file_name, cur_xyz, Constellation);
+        parse_sp3(next_file_name, next_xyz, Constellation);
 
         interplotation(pre_xyz, cur_xyz, next_xyz, sate_xyz);
 
@@ -904,7 +909,144 @@ void read_sp3(const char* s_ipath, const char* s_opath){
     free(sp3_filenames);
     printf("----------Step 2: completings !----------\n");
 }
-// free到这儿了
+
+void read_sp3_v304(const char* s_ipath, const char* s_opath){
+    printf("----------Step 2: starting read SP3 files!----------\n");
+    DIR *dir;
+    FILE *file;
+    struct dirent *entry;
+    int sp3_file_num;
+    int DOY; int YEAR;
+
+    // 计算sp3_files文件夹中文件数
+    sp3_file_num = countFilesInDirectory(s_ipath);
+    //如果文件数小于3，则报错"Need at least 3 SP3 files!"并退出程序
+    if (sp3_file_num < 3){
+        printf("Need at least 3 SP3 files!\n");
+        exit(EXIT_FAILURE);
+    }
+    char** sp3_filenames;
+    malloc_Char_Vector(&sp3_filenames, sp3_file_num, 256);
+    getFileNamesInDirectory(s_ipath, sp3_filenames, sp3_file_num);
+    sort_filenames(sp3_filenames, sp3_file_num);
+
+    for (int i = 0; i < (sp3_file_num - 2); i++) {
+        int index = 0;//读取文件夹中的文件的索引
+        char pre_file_name[256];
+        char cur_file_name[256];
+        char next_file_name[256];
+        int G_Week = 0;
+        int Day_of_Week = 0;
+
+        //给pre_file_name,cur_file_name,next_file_name都赋值
+        for (int j=0; j<sp3_file_num; j++) {  // 遍历文件夹中的每一个文件
+            if (index == i) {  //前两个文件分别是"."和"..",所以从第三个文件开始读
+                char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
+                strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+
+#ifdef LINUX
+                strcat(filepath, "/");
+#elif defined(WINDOWS)
+                strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+#else
+#endif
+                strcat(filepath, sp3_filenames[j]);  // 将文件名拷贝到缓冲区
+                //把filepath的值赋给pre_file_name
+                strcpy(pre_file_name, filepath);
+            }
+            if (index == i+1){
+                char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
+                strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+
+#ifdef LINUX
+                strcat(filepath, "/");
+#elif defined(WINDOWS)
+                strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+#else
+#endif
+                strcat(filepath, sp3_filenames[j]);  // 将文件名拷贝到缓冲区
+                strcpy(cur_file_name, filepath);
+
+//                sscanf(sp3_filenames[j] + 3, "%4d", &G_Week);
+//                sscanf(sp3_filenames[j] + 7, "%1d", &Day_of_Week);
+
+                sscanf(sp3_filenames[j] + 11, "%4d", &YEAR);
+                sscanf(sp3_filenames[j] + 15, "%3d", &DOY);
+            }
+            if (index == i+2){
+                char filepath[256];  // 定义一个足够大的缓冲区来存储完整路径
+                strcpy(filepath, s_ipath);  // 将文件夹路径拷贝到缓冲区
+
+#ifdef LINUX
+                strcat(filepath, "/");
+#elif defined(WINDOWS)
+                strcat(filepath, "\\");  // 将文件名拷贝到缓冲区
+#else
+#endif
+                strcat(filepath, sp3_filenames[j]);  // 将文件名拷贝到缓冲区
+                strcpy(next_file_name, filepath);
+            }
+            index++;  // 如果不是第 i 个文件，继续查找下一个文件
+        }
+
+        //读取pre_file_name sp3文件的x,y,z坐标
+        //定义一个一维double数组pre_xyz，长度为3，并赋初值为0
+        double ***pre_xyz; double ***cur_xyz; double ***next_xyz; double ***sate_xyz;
+        malloc_double_3D(&pre_xyz, 3, 96, N_SAT);
+        malloc_double_3D(&cur_xyz, 3, 96, N_SAT);
+        malloc_double_3D(&next_xyz, 3, 96, N_SAT);
+        malloc_double_3D(&sate_xyz, 3, 2880, N_SAT);
+
+        //pre_xyz[][][],第一个[]代表x,y,z坐标，第二个[]代表行（时间），第三个[]代表列（卫星编号）
+        parse_sp3(pre_file_name, pre_xyz, Constellation);
+        parse_sp3(cur_file_name, cur_xyz, Constellation);
+        parse_sp3(next_file_name, next_xyz, Constellation);
+
+        interplotation(pre_xyz, cur_xyz, next_xyz, sate_xyz);
+
+//        int* DOY = GWeek_2_DOY(G_Week, Day_of_Week);
+
+        char sav_filename[256]; // 假设文件名长度不超过256个字符
+        //生成文件名，路径为当前路径下的SP3_output_files文件夹
+        strcpy(sav_filename, s_opath);
+#ifdef LINUX
+        strcat(sav_filename, "/");
+#elif defined(WINDOWS)
+        strcat(sav_filename, "\\");
+#else
+#endif
+        //添加G_Week和Day_of_Week到文件名中
+//        char G_Week_str[5];
+//        char Day_of_Week_str[2];
+//        sprintf(G_Week_str, "%d", DOY[0]);
+//        sprintf(Day_of_Week_str, "%d", DOY[1]);
+//        strcat(sav_filename, G_Week_str);
+//        strcat(sav_filename, "_");
+//        strcat(sav_filename, Day_of_Week_str);
+        //把DOY转换成字符串
+        char DOY_str[4]; char YEAR_str[5];
+        sprintf(DOY_str, "%d", DOY);
+        sprintf(YEAR_str, "%d", YEAR);
+
+        strcat(sav_filename, YEAR_str);
+        strcat(sav_filename, "_");
+        strcat(sav_filename, DOY_str);
+        strcat(sav_filename, "sp3");
+        strcat(sav_filename, ".dat");
+
+        //saveSp3ToCSV(sate_xyz, sav_filename); //以csv格式存储sp3文件
+        save_sp3_To_Bin_File(sate_xyz, 3, 2880, N_SAT, sav_filename);  //以二进制格式存储sp3文件
+
+//        free(pre_xyz);
+//        free(cur_xyz);
+//        free(next_xyz);
+//        free(sate_xyz);
+    }
+
+    free(sp3_filenames);
+    printf("----------Step 2: completings !----------\n");
+}
+
 // 读取ionex文件，相关结果存放在sitesInfo.RDCB_REF和sDCB_REF结构体中
 void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo, SDCB_REF sdcb_ref){
     printf("----------Step 3: starting read ionex files!----------\n");
@@ -1049,7 +1191,7 @@ void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType
 // 功能描述：解析sp3文件，将x、y、z上的2880*32都存入xyz三维数组，每个维度分别代表x、y、z
 // 入参：* sp3_file —— sp3文件完整路径； ***xyz —— 待存放精密星历xyz坐标的三维数组
 // 出参：无
-void parse_sp3(char* sp3_file, double ***xyz){
+void parse_sp3(char* sp3_file, double ***xyz, const char* Constellation){
     FILE *file;
     char line[256];
     file = fopen(sp3_file, "r");
@@ -1073,17 +1215,20 @@ void parse_sp3(char* sp3_file, double ***xyz){
             continue;
         }
         //如果line长度大于1，并且line的第一个和第二个字符是"PG"，则执行下面的语句
-        if (strlen(line) > 1 && line[0] == 'P' && line[1] == 'G'){
-            int sv = 0;
-            if (sscanf(line+2, "%2d", &sv) == 1){
+        if (strlen(line) > 1 && line[0] == 'P'){
+            //如果第二个字符与Constellation相同，则开始获取观测值
+            if (line[1] == Constellation[0]) {
+                int sv = 0;
+                if (sscanf(line + 2, "%2d", &sv) == 1) {
+                }
+                if (sscanf(line + 4, "%14lf", &xyz[0][ep - 1][sv - 1]) == 1) {
+                }
+                if (sscanf(line + 18, "%14lf", &xyz[1][ep - 1][sv - 1]) == 1) {
+                }
+                if (sscanf(line + 32, "%14lf", &xyz[2][ep - 1][sv - 1]) == 1) {
+                }
+                continue;
             }
-            if (sscanf(line+4, "%14lf", &xyz[0][ep-1][sv-1]) == 1){
-            }
-            if (sscanf(line+18, "%14lf", &xyz[1][ep-1][sv-1]) == 1){
-            }
-            if (sscanf(line+32, "%14lf", &xyz[2][ep-1][sv-1]) == 1){
-            }
-            continue;
         }
     }
     fclose(file);
@@ -1506,6 +1651,157 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
         free(site);
         free(sate_xyz);
         free(P4);
+    }
+    printf("----------Step 4: completings !----------\n");
+}
+
+void get_smoothed_P4_v304(SitesInfo sitesInfo, double z_threshold, int flag){
+    printf("----------Step 4: starting get smoothed P4!----------\n");
+    //找到去重后的rinex文件列表中与site对应的index
+    int new_size = 0;
+    char** sites; //去重的DOY存放在doys数组中，大小为new_size
+
+    //通过一个函数得到一个只包含sitesInfo.name中前四位（site名称）的数组siteOnlyName，大小和sitesInfo.name一样
+    char** sitesOnlyName;
+    malloc_Char_Vector(&sitesOnlyName, r_file_num, 4);
+
+    for (int i = 0; i < r_file_num; i++){
+        strncpy(sitesOnlyName[i], &sitesInfo.name[i][0],4);
+        sitesOnlyName[i][4] = '\0';
+    }
+
+    removeSameElementAndReturn_Char(sitesOnlyName, &sites, r_file_num, &new_size);
+    free(sitesOnlyName);
+
+    for (int j = 1; j < r_file_num; j++){
+        //查看doys数组中是否有与psitesInfo->doy[i]相同的元素，若有，则不做任何行为，若无，则将psitesInfo->doy[i]赋值给doys[new_size]，并且new_size加1
+        int flag = 0;
+        char* temp_name;
+        temp_name = (char *) malloc(4 * sizeof(char));
+        sscanf(sitesInfo.name[j], "%4s", temp_name);
+
+        for (int k = 0; k < new_size; k++){
+            //如果sites[j]和temp_name字符串完全相同
+            if (strcmp(sites[k], temp_name) == 0){
+                flag = 1;   //说明在这个小循环中找到了相同的元素
+                break;
+            }
+        }
+        if (flag == 0){
+            sscanf(temp_name, "%4s", sites[new_size]);
+            new_size++;
+        }
+
+        free(temp_name);
+    }
+
+    //依次读取每天的rinex参数和sp3参数
+    for (int i=0; i < r_file_num; i++){
+        //读取RINEX_output_files文件夹中的第一个文件
+        char rinex_file_path[256];
+        Obs obs_temp;
+        strcpy(rinex_file_path, r_opath);
+#ifdef LINUX
+        strcat(rinex_file_path, "/");
+#elif defined(WINDOWS)
+        strcat(rinex_file_path, "\\");
+#else
+#endif
+        strcat(rinex_file_path, sitesInfo.name[i]);
+        strcat(rinex_file_path, ".dat");
+        readObsFromFile(rinex_file_path, &obs_temp);
+
+        char* site; int doy;
+        site = (char *) malloc(64 * sizeof(char));
+        sscanf(sitesInfo.name[i], "%4s", site);
+        doy = sitesInfo.doy[i];
+        int index = 0;
+
+        for (int j=0;j<new_size;j++){
+            if (strcmp(sites[j], site) == 0){
+                index = j;
+                break;
+            }
+        }
+
+        double sx = 0; double sy = 0; double sz = 0;
+        sx = sitesInfo.coor[index][0];
+        sy = sitesInfo.coor[index][1];
+        sz = sitesInfo.coor[index][2];
+
+        if (sx == 0 && sy == 0 && sz == 0){
+            continue;
+        }
+
+        //组成读取sp3的文件名
+        char sp3_load_file_path[256];
+
+        //添加s_opath到sp3_load_file_path
+        strcpy(sp3_load_file_path, s_opath);
+#ifdef LINUX
+        strcat(sp3_load_file_path, "/");
+#elif defined(WINDOWS)
+        strcat(sp3_load_file_path, "\\");
+#else
+#endif
+        //在字符串中添加"20"
+        strcat(sp3_load_file_path, "20");
+        //在字符串sp3_load_file_path中添加doy的前2个字符，如doy=10001，则添加“10”
+        // 将doy的前两个字符转换为字符串
+        char doy_str[3];
+        snprintf(doy_str, sizeof(doy_str), "%d", doy);
+        strncat(sp3_load_file_path, doy_str, 2);
+        //在字符串中添加"_"
+        strcat(sp3_load_file_path, "_");
+        // 提取doy的后三位数字
+        int last_three_digits = doy % 1000;
+        // 转换后三位数字为字符串
+        char doy_str_2[4]; // 考虑到最大值为999，因此最多需要4个字符（包括终止符'\0'）
+        sprintf(doy_str_2, "%d", last_three_digits);
+        strcat(sp3_load_file_path, doy_str_2);
+        //在字符串中添加"sp3.dat"
+        strcat(sp3_load_file_path, "sp3.dat");
+
+        //读取sp3文件
+        double ***sate_xyz;
+        malloc_double_3D(&sate_xyz, 3, 2880, N_SAT);
+
+        load_Sp3_From_Bin_File(&sate_xyz, 3, 2880, N_SAT, sp3_load_file_path);
+
+        cutobs(&obs_temp, sate_xyz, sx, sy, sz, z_threshold);//筛选后的obs值存在obs_temp中
+
+        double** P4;
+        malloc_Double_2D(&P4, 2880, N_SAT);
+
+        P4 = pre_pro(&obs_temp);//对obs_temp进行预处理
+
+        char sav_P4_filename[256];
+        //添加m_p4_path到sav_P4_filename
+        strcpy(sav_P4_filename, m_p4_path);
+#ifdef LINUX
+        strcat(sav_P4_filename, "/");
+#elif defined(WINDOWS)
+        //添加“\\”到sav_P4_filename
+        strcat(sav_P4_filename, "\\");
+#else
+#endif
+        //先将site的值赋给sav_P4_filename
+        strcat(sav_P4_filename, site);
+        //再取doy赋给sav_P4_filename
+        char doy_str_3[6];
+        snprintf(doy_str_3, sizeof(doy_str_3), "%d", doy);
+        strncat(sav_P4_filename, doy_str_3, 5);
+        //在字符串中添加"_P4.dat"
+        strcat(sav_P4_filename, "_P4.dat");
+
+        save_P4_To_Bin_File(P4, 2880, N_SAT, sav_P4_filename);//将P4存入文件中
+
+        free(site);
+        free(sate_xyz);
+        free(P4);
+
+        //打印当前的循环次数
+        printf("Current loop: %d\n", i);
     }
     printf("----------Step 4: completings !----------\n");
 }
