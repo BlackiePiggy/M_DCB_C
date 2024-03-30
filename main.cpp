@@ -60,8 +60,10 @@ typedef struct {
 // -------------------------------------------------------------------------
 // -----------------------------全局变量--------------------------------------
 // -------------------------------------------------------------------------
-const char* r_ipath = "/home/jason/projects/M_DCB_C/RINEX_files";// rinex
-const char* r_opath = "/home/jason/projects/M_DCB_C/RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
+//const char* r_ipath = "/home/jason/projects/M_DCB_C/RINEX_files";// rinex
+const char* r_ipath = "/home/jason/projects/M_DCB_C/data/2021_029_data/obs";// rinex
+//const char* r_opath = "/home/jason/projects/M_DCB_C/RINEX_output_files";//sprintf(sav_filename, "D:\\projects\\M_DCB\\RINEX_output_files\\observation_%s.csv", psitesInfo->name[i]);
+const char* r_opath = "/home/jason/projects/M_DCB_C/data/2021_029_data/obs_output";
 const char* s_ipath = "/home/jason/projects/M_DCB_C/SP3_files";// sp3
 const char* s_opath = "/home/jason/projects/M_DCB_C/SP3_output_files";//
 const char* i_ipath = "/home/jason/projects/M_DCB_C/IONEX_files";// ionex
@@ -80,6 +82,11 @@ int period = 2;
 SitesInfo sitesInfo;
 Obs obs;
 SDCB_REF sDCB_REF;
+
+const char* OBS_type_1 = "C2I";
+const char* OBS_type_2 = "C6I";
+const char* Constellation = "C";
+int N_SAT = 45;
 
 // --------------------------------------------------------------------------
 // -----------------------------函数声明--------------------------------------
@@ -147,6 +154,8 @@ void sort_filenames(char *files[], int count);
 int compare(const void *a, const void *b);
 int strnatcmp(const char *a, const char *b);
 double* solve_least_squares(double** B, double* l, int B_row_num, int B_col_num, int l_row_num) ;
+void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs,const char* OBS_type_1, const char* OBS_type_2, const char* Constellation);
+
 
 // 不同平台的函数声明
 #ifdef LINUX
@@ -180,14 +189,21 @@ int main() {
     CreateFolderIfNotExist_WINDOWS(m_result_path);
 #endif
 
+    // 为obs结构体内的数组分配内存，每个变量均需要一个(2880,N_SAT)尺寸的二维double数组
+    malloc_Double_2D(&obs.P1, 2880, N_SAT);  // 分配内存空间给 P1
+    malloc_Double_2D(&obs.P2, 2880, N_SAT); // 分配内存空间给 P2
+    malloc_Double_2D(&obs.L1, 2880, N_SAT); // 分配内存空间给 L1
+    malloc_Double_2D(&obs.L2, 2880, N_SAT); // 分配内存空间给 L2
+
     // Step one----read rinex files
-    read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
+    read_rinex_v304(r_ipath, r_opath, &sitesInfo, &obs, OBS_type_1, OBS_type_2, Constellation);
+//    read_rinex(r_ipath, r_opath, &sitesInfo, &obs);
 
     // Step two----Read SP3 files
     read_sp3(s_ipath, s_opath);
 
     // Step three----Read ionex files
-    read_ionex(i_ipath, i_opath, &sitesInfo, sDCB_REF);
+    //read_ionex(i_ipath, i_opath, &sitesInfo, sDCB_REF);
 
     // Step four----Get smoothed P4
     get_smoothed_P4(sitesInfo, (lim*pi/180), 0);
@@ -234,10 +250,10 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
     malloc_Double_Vector(&psitesInfo->RDCB_REF, r_file_num);
 
     // 为obs结构体内的数组分配内存，每个变量均需要一个(2880,32)尺寸的二维double数组
-    malloc_Double_2D(&pobs->P1, 2880, 32);  // 分配内存空间给 P1
-    malloc_Double_2D(&pobs->P2, 2880, 32); // 分配内存空间给 P2
-    malloc_Double_2D(&pobs->L1, 2880, 32); // 分配内存空间给 L1
-    malloc_Double_2D(&pobs->L2, 2880, 32); // 分配内存空间给 L2
+    malloc_Double_2D(&pobs->P1, 2880, N_SAT);  // 分配内存空间给 P1
+    malloc_Double_2D(&pobs->P2, 2880, N_SAT); // 分配内存空间给 P2
+    malloc_Double_2D(&pobs->L1, 2880, N_SAT); // 分配内存空间给 L1
+    malloc_Double_2D(&pobs->L2, 2880, N_SAT); // 分配内存空间给 L2
 
     char doy[4];    //用于存放文件名中的doy部分
     char sub_str[3];    //用于存放文件名中的
@@ -253,7 +269,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
         psitesInfo->doy[i] = 1000 * atoi(sub_str) + atoi(doy);  //计算真正的doy，存入doy
     }
     // 释放fileNames的内存
-    free(fileNames);
+    //free(fileNames);
 //    //打印psitesInfo中存好的测站名和doy，用于debug
 //    for (int i = 0; i < r_file_num; i++) {
 //        printf("File No.%d :%s, DOY: %d\n", i + 1, psitesInfo->name[i], psitesInfo->doy[i]);
@@ -332,7 +348,7 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         }
                     }
                     // 释放obst和loc的内存
-                    free(obst);
+                    //free(obst);
                 }
             }
             //----start get GPS observables------------
@@ -457,12 +473,12 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
                         pobs->P1[ep-1][sv_G[j]-1]=obs_temp[loc[2]];
                         pobs->P2[ep-1][sv_G[j]-1]=obs_temp[loc[3]];
 
-                        free(obs_temp);
+                        //free(obs_temp);
                     }
                     // 释放sv_G的内存
-                    free(sv_G);
+                    //free(sv_G);
                 }
-                free(loc);
+                //free(loc);
             }
         }
         // 单个文件读取结束，关闭文件
@@ -481,13 +497,288 @@ void read_rinex(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo,
         strcat(sav_dat_filename, psitesInfo->name[i]);
         strcat(sav_dat_filename, ".dat");
 
-        writeObsToFile(sav_dat_filename, pobs, 2880, 2880, 2880, 2880, 32);
+        writeObsToFile(sav_dat_filename, pobs, 2880, 2880, 2880, 2880, N_SAT);
 
         //printf("Data %s written to file successfully.\n", sav_dat_filename);
 
     }
     printf("----------Step 1: completings !----------\n");
 }
+
+void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs,const char* OBS_type_1, const char* OBS_type_2, const char* Constellation){    printf("----------Step 1: starting read rinex files!----------\n");
+    DIR *dir;
+    FILE *file;
+    struct dirent *entry;
+
+    // 打开文件夹
+    dir = opendir(r_ipath);
+    if (dir == NULL) {
+        perror("无法打开文件夹");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Starting Reading Rinex Files!\n");
+
+    r_file_num = countFilesInDirectory(r_ipath);    // 计算rinex文件数
+    char** fileNames;   //存放rinex文件夹下的所有文件名
+    malloc_Char_Vector(&fileNames, r_file_num, 256);    //为fileNames分配空间
+    getFileNamesInDirectory(r_ipath, fileNames, r_file_num);    //获取rinex文件夹下的所有文件名
+    sort_filenames(fileNames, r_file_num);  //对fileNames文件名进行自然排序
+
+    // 为 SitesInfo 结构体内的变量分配内存
+    malloc_Char_Vector(&psitesInfo->name, r_file_num, 256);
+    malloc_Int_Vector(&psitesInfo->doy, r_file_num);
+    malloc_Double_2D(&psitesInfo->coor, r_file_num, 3);
+    malloc_Double_Vector(&psitesInfo->RDCB_REF, r_file_num);
+
+
+
+    char doy[4];    //用于存放文件名中的doy部分
+    char sub_str[3];    //用于存放文件名中的
+    // 循环rinex文件名，取出测站名和doy存入psitesInfo里（读sitesInfo）
+    for (int i = 0; i < r_file_num; i++) {
+        strcpy(psitesInfo->name[i], fileNames[i]);  //fileNames不处理，直接存入name
+        //将fileNames[i]的第10到11个字符赋值给sub_str，再将fileNames[i]的第5到7个字符赋值给doy
+        //例如，文件名叫gope0010.10o，sub_str就是10，doy就是001
+        //现在文件名为：ABMF00GLP_R_20210290000_01D_30S_MO.rnx，sub_str就是21，doy就是029
+        strncpy(sub_str, &fileNames[i][14], 2);
+        strncpy(doy, &fileNames[i][16], 3);
+        sub_str[2] = '\0';  //这一步必须加入字符串结束标志，否则会出问题
+        doy[3] = '\0';  //这一步必须加入字符串结束标志，否则会出问题
+        psitesInfo->doy[i] = 1000 * atoi(sub_str) + atoi(doy);  //计算真正的doy，存入doy
+    }
+    // 释放fileNames的内存
+    //free(fileNames);
+//    //打印psitesInfo中存好的测站名和doy，用于debug
+//    for (int i = 0; i < r_file_num; i++) {
+//        printf("File No.%d :%s, DOY: %d\n", i + 1, psitesInfo->name[i], psitesInfo->doy[i]);
+//    }
+
+    char line[256]; // 假设读文件过程中一行最多包含256个字符
+    char filename[256]; //待读的文件名称
+    int obst_n; char **obst;
+    double h; double m; double s; int ep = 0;
+    int *loc;
+
+    // 循环读取每个rinex（读obs观测值）
+    for (int i = 0; i < r_file_num; i++) {
+        //printf("Reading File No.%d :%s\n", i + 1, psitesInfo->name[i]);
+
+        //拼接部分读取文件的路径
+        strcpy(filename, r_ipath);
+#ifdef LINUX
+        strcat(filename, "/");  //Linux文件系统和windows文件路径符号不一样
+#elif defined(WINDOWS)
+        strcat(filename, "\\");
+#endif
+        strcat(filename, psitesInfo->name[i]);  //拼接待读文件完整路径
+        file = fopen(filename, "r");    // 打开文件
+        if (file == NULL) {
+            perror("Can't Open File");
+        }
+
+        // 逐行读取
+        while (fgets(line, sizeof(line), file)) {
+            // -----get receivers coordinates-----------
+            if (strstr(line, "APPROX POSITION XYZ") != NULL) {
+                double x, y, z;
+                // 将行解析成三个双精度浮点数
+                if (sscanf(line, "%lf %lf %lf", &x, &y, &z) == 3) {
+                    psitesInfo->coor[i][0] = x;
+                    psitesInfo->coor[i][1] = y;
+                    psitesInfo->coor[i][2] = z;
+                }
+            }
+            //-----get the GPS observables' types------
+            // 1.扫描constellation对应的SYS / # / OBS TYPES行，找到对应的OBS_type_1和OBS_type_2对应的index
+            // 2.然后开始扫描正文，当是C开头的时候，扫描：1-卫星号；2-OBS_type_1_P1；3-OBS_type_1_L1;4-OBS_type_2_P2;5-OBS_type_2_L2
+            // 3.将这些数据存入pobs中
+            if (strstr(line, "SYS / # / OBS TYPES") != NULL){
+                //扫描第一个字符，如果是constellation，先扫描观测数量，然后建立一个字符串数组存放观测类型
+                //扫描每个%3s，一次存入字符串数组
+                //扫描下一行，如果第一个字符是空，则继续扫描，直到读取完所有的观测类型
+                //然后根据OBS_type_1和OBS_type_2找到对应的index，如果没找到，则报错
+
+                //扫描第一个字符first_char
+                char first_char[2];
+                strncpy(first_char, &line[0], 1);
+                first_char[1] = '\0';
+
+                //如果与Constellation相同，则扫描观测类型数量
+                if (strcmp(first_char, Constellation) == 0){
+                    //扫描观测数量，第5-6个字符代表观测数量
+                    char obst_num[3];
+                    strncpy(obst_num, &line[4], 2);
+                    obst_num[2] = '\0';
+                    obst_n = atoi(obst_num);
+
+                    //建立字符串数组存放观测类型
+                    malloc_Char_Vector(&obst, obst_n, 4);
+                    int offset = 0;
+
+                    if (obst_n>13){
+                        //先读13个
+                        offset = 7;
+                        for (int j = 0; j < 13; j++){
+                            if (sscanf(line + offset, "%3s", obst[j]) == 1) {
+                                // 成功解析一个观测名称，更新偏移量，准备解析下一个观测名称
+                                offset += 4; // 每个观测名称占据4个字符，包括空格
+                            } else {
+                                // 解析失败，处理异常情况
+                                printf("Failed to parse observation type at index %d\n", j);
+                                break;
+                            }
+                        }
+                        //换行，再读剩下的
+                        fgets(line, sizeof(line), file);
+                        offset = 7;
+                        for (int j = 13; j < obst_n; j++){
+                            if (sscanf(line + offset, "%3s", obst[j]) == 1) {
+                                // 成功解析一个观测名称，更新偏移量，准备解析下一个观测名称
+                                offset += 4; // 每个观测名称占据4个字符，包括空格
+                            } else {
+                                // 解析失败，处理异常情况
+                                printf("Failed to parse observation type at index %d\n", j);
+                                break;
+                            }
+                        }
+                    }else{  //如果不用换行(<13个），则直接读完就行
+                        //开始扫描每个%3s，每次扫描到都存入字符串数组
+                        offset = 7;
+                        for (int j = 0; j < obst_n; j++){
+                            if (sscanf(line + offset, "%3s", obst[j]) == 1) {
+                                // 成功解析一个观测名称，更新偏移量，准备解析下一个观测名称
+                                offset += 4; // 每个观测名称占据4个字符，包括空格
+                            } else {
+                                // 解析失败，处理异常情况
+                                printf("Failed to parse observation type at index %d\n", j);
+                                break;
+                            }
+                        }
+                    }
+
+                    //根据OBS_type_1和OBS_type_2找到对应的index
+                    malloc_Int_Vector(&loc, 4);
+                    for (int j = 0; j < obst_n; j++){
+                        //比较obst[j]和"OBS_type_1"字符串是否相同，如果相同，则给loc[0]赋值为j
+                        if (strcmp(obst[j], OBS_type_1) == 0){
+                            loc[2] = j;     //P1
+                            loc[0] = j+1;   //L1
+                        }
+                        if (strcmp(obst[j], OBS_type_2) == 0) {
+                            loc[3] = j;     //P2
+                            loc[1] = j+1;   //L2
+                        }
+                    }
+
+                    // 释放obst
+                    //free(obst);
+                }
+            }
+
+            //----start get GPS observables------------
+            //1.如果第一个字符是">"，则读取时间计算ep
+            double buff;
+            if (strstr(line, "END OF HEADER") != NULL) {
+                while (1) {
+                    //读取下一行
+                    fgets(line, sizeof(line), file);
+                    // 检查是否到达文件结尾
+                    if (feof(file)) {
+                        // 到达文件结尾，跳出循环
+                        break;
+                    }
+                    //如果第一个字符是">"，则读取时间计算ep
+                    if (line[0] == '>') {
+                        //将line的第1到2个字符转换成double类型，再赋值给h
+                        h = 0;
+                        m = 0;
+                        s = 0;
+                        if (sscanf(line + 13, "%2lf", &h) == 1) {
+                        }
+                        if (sscanf(line + 16, "%2lf", &m) == 1) {
+                        }
+                        if (sscanf(line + 19, "%10lf", &s) == 1) {
+                        }
+                        ep = h * 120 + m * 2 + s / 30 + 1;
+
+                        //---get satellite number----
+                        int nsat;
+                        int *sv_G;
+                        //读取有多少颗卫星观测量，下面就读多少行
+                        sscanf(line + 33, "%2d", &nsat);
+                        for (int j = 0; j < nsat; j++) {
+                            //读取下一行，如果字符与Constellation相同，则开始获取观测值
+                            fgets(line, sizeof(line), file);
+                            if (line[0] == Constellation[0]) {
+                                //读取卫星号
+                                int sv;
+                                sscanf(line + 1, "%2d", &sv);
+                                if (sv==31 || sv>46){
+                                    continue;
+                                }
+                                //读取观测值
+                                double* obs_temp;
+                                malloc_Double_Vector(&obs_temp, 4);
+
+                                //如果对应位置不是空字符串，则读取对应的观测值
+                                for (int k = 0; k<4; k++){
+                                    //比较line + 3 + 16 * loc[0], "              ",如果line的第16*loc[0]到第16*loc[0]+14个字符是空格，则给obs_temp[0]赋值为0
+                                    if (strncmp(line + 3 + 16 * loc[k], "              ", 14) == 0) {
+                                        obs_temp[k] = 0.0;
+                                        continue;
+                                    } else {
+                                        sscanf(line + 3 + 16 * loc[k], "%14lf", &obs_temp[k]);
+                                    }
+                                }
+
+                                if (sv>31){
+                                    pobs->L1[ep - 1][sv - 2] = obs_temp[0];
+                                    pobs->L2[ep - 1][sv - 2] = obs_temp[1];
+                                    pobs->P1[ep - 1][sv - 2] = obs_temp[2];
+                                    pobs->P2[ep - 1][sv - 2] = obs_temp[3];
+                                }
+                                if (sv<31){
+                                    pobs->L1[ep - 1][sv - 1] = obs_temp[0];
+                                    pobs->L2[ep - 1][sv - 1] = obs_temp[1];
+                                    pobs->P1[ep - 1][sv - 1] = obs_temp[2];
+                                    pobs->P2[ep - 1][sv - 1] = obs_temp[3];
+                                }
+
+                                free(obs_temp);
+                            }
+                        }
+                    } else {
+                        continue;
+                    }
+                }
+            }
+        }
+        //free(loc);
+        // 单个文件读取结束，关闭文件
+        fclose(file);
+
+        char sav_dat_filename[256]; // 假设文件名长度不超过256个字符
+
+        //生成文件名，路径为当前路径下的RINEX_output_files文件夹
+        strcpy(sav_dat_filename, r_opath);
+#ifdef LINUX
+        strcat(sav_dat_filename, "/");
+#elif defined(WINDOWS)
+        strcat(sav_dat_filename, "\\");
+#else
+#endif
+        strcat(sav_dat_filename, psitesInfo->name[i]);
+        strcat(sav_dat_filename, ".dat");
+
+        writeObsToFile(sav_dat_filename, pobs, 2880, 2880, 2880, 2880, N_SAT);
+
+        printf("Data %s written to file successfully.\n", sav_dat_filename);
+
+    }
+    printf("----------Step 1: completings !----------\n");
+}
+
 
 void read_sp3(const char* s_ipath, const char* s_opath){
     printf("----------Step 2: starting read SP3 files!----------\n");
@@ -567,10 +858,10 @@ void read_sp3(const char* s_ipath, const char* s_opath){
         //读取pre_file_name sp3文件的x,y,z坐标
         //定义一个一维double数组pre_xyz，长度为3，并赋初值为0
         double ***pre_xyz; double ***cur_xyz; double ***next_xyz; double ***sate_xyz;
-        malloc_double_3D(&pre_xyz, 3, 96, 32);
-        malloc_double_3D(&cur_xyz, 3, 96, 32);
-        malloc_double_3D(&next_xyz, 3, 96, 32);
-        malloc_double_3D(&sate_xyz, 3, 2880, 32);
+        malloc_double_3D(&pre_xyz, 3, 96, N_SAT);
+        malloc_double_3D(&cur_xyz, 3, 96, N_SAT);
+        malloc_double_3D(&next_xyz, 3, 96, N_SAT);
+        malloc_double_3D(&sate_xyz, 3, 2880, N_SAT);
 
         //pre_xyz[][][],第一个[]代表x,y,z坐标，第二个[]代表行（时间），第三个[]代表列（卫星编号）
         parse_sp3(pre_file_name, pre_xyz);
@@ -602,7 +893,7 @@ void read_sp3(const char* s_ipath, const char* s_opath){
         strcat(sav_filename, ".dat");
 
         //saveSp3ToCSV(sate_xyz, sav_filename); //以csv格式存储sp3文件
-        save_sp3_To_Bin_File(sate_xyz, 3, 2880, 32, sav_filename);  //以二进制格式存储sp3文件
+        save_sp3_To_Bin_File(sate_xyz, 3, 2880, N_SAT, sav_filename);  //以二进制格式存储sp3文件
 
         free(pre_xyz);
         free(cur_xyz);
@@ -642,7 +933,7 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
     }
 
     //为sdcb_ref结构体内的数组分配内存,value需要((new_size)*32)的尺寸
-    malloc_Double_2D(&sdcb_ref.value, new_size, 32);
+    malloc_Double_2D(&sdcb_ref.value, new_size, N_SAT);
     malloc_Int_Vector(&sdcb_ref.doy, new_size);
 
     char** ionex_filenames; int ionex_file_num = 0;
@@ -650,7 +941,7 @@ void read_ionex(const char* i_ipath, const char* i_opath, SitesInfo *psitesInfo,
     ionex_file_num = countFilesInDirectory(i_ipath);
 
     //给ionex_filenames申请ionex_file_num个char*类型的内存,每个char不超过32个字符
-    malloc_Char_Vector(&ionex_filenames, ionex_file_num, 32);
+    malloc_Char_Vector(&ionex_filenames, ionex_file_num, N_SAT);
 
     getFileNamesInDirectory(i_ipath, ionex_filenames, ionex_file_num);
     sort_filenames(ionex_filenames, ionex_file_num);
@@ -740,7 +1031,7 @@ int countFilesInDirectory(const char *folderPath) {
 void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType) {
     // 写入列标签
     fprintf(file, "%s_Epoch", dataType); // 假设第一列为时间戳
-    for (int j = 1; j <= 32; j++) {
+    for (int j = 1; j <= N_SAT; j++) {
         fprintf(file, ",%s_sv_%d", dataType, j); // 生成并写入标签
     }
     fprintf(file, "\n"); // 结束标签行
@@ -748,7 +1039,7 @@ void writeArrayToFileWithLabels(FILE *file, double **array, const char* dataType
     // 写入数据
     for (int i = 0; i < 2880; i++) {
         fprintf(file, "%d", i+1); // 假设第一列为时间戳，此处简化处理
-        for (int j = 0; j < 32; j++) {
+        for (int j = 0; j < N_SAT; j++) {
             fprintf(file, ",%.4f", array[i][j]);
         }
         fprintf(file, "\n");
@@ -805,7 +1096,7 @@ void parse_sp3(char* sp3_file, double ***xyz){
 // 出参：无
 void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***sate_xyz){
     double ***cur_xyz_etd;  //当前xyz的扩展数组
-    malloc_double_3D(&cur_xyz_etd, 3, 105, 32); //cur_xyz_etd的尺寸为3*105*32
+    malloc_double_3D(&cur_xyz_etd, 3, 105, N_SAT); //cur_xyz_etd的尺寸为3*105*32
 
     extend_matrix(0, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//x_extend
     extend_matrix(1, pre_xyz, cur_xyz, next_xyz, cur_xyz_etd);//y_extend
@@ -817,7 +1108,7 @@ void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, do
         m_t[i] = -120 + 30*i;
     }
 
-    for (int i = 0; i < 32; i++){
+    for (int i = 0; i < N_SAT; i++){
         for (int j = 0; j < 96; j++){
             double tt[10];
             //tt的值等于m_t的第j个元素到第j+9个元素
@@ -874,21 +1165,21 @@ void interplotation(double ***pre_xyz, double ***cur_xyz, double ***next_xyz, do
 void extend_matrix(int dimension, double ***pre_xyz, double ***cur_xyz, double ***next_xyz, double ***xyz_etd){
     //先填充pre_xyz的部分
     for (int j = 0; j < 4; j++){
-        for (int k = 0; k < 32; k++) {
+        for (int k = 0; k < N_SAT; k++) {
             xyz_etd[dimension][j][k] = pre_xyz[dimension][j+92][k];
         }
     }
 
     // 填充cur_xyz的部分
     for (int j = 4; j < 100; j++) {
-        for (int k = 0; k < 32; k++) {
+        for (int k = 0; k < N_SAT; k++) {
             xyz_etd[dimension][j][k] = cur_xyz[dimension][j-4][k];
         }
     }
 
     // 填充next_xyz的部分
     for (int j = 100; j < 105; j++) {
-        for (int k = 0; k < 32; k++) {
+        for (int k = 0; k < N_SAT; k++) {
             xyz_etd[dimension][j][k] = next_xyz[dimension][j-100][k];
         }
     }
@@ -962,9 +1253,9 @@ void saveSp3ToCSV(double*** sate_xyz, char* filename) {
 
     // 为卫星号SVN创建表头
     fprintf(file, "Epoch/SVN,");
-    for (int svn = 1; svn <= 32; svn++) {
+    for (int svn = 1; svn <= N_SAT; svn++) {
         fprintf(file, "%d", svn);
-        if (svn < 32) fprintf(file, ",");
+        if (svn < N_SAT) fprintf(file, ",");
         else fprintf(file, "\n");
     }
 
@@ -972,7 +1263,7 @@ void saveSp3ToCSV(double*** sate_xyz, char* filename) {
     for (int dim = 0; dim < 3; dim++) { // 0: x, 1: y, 2: z
         for (int epoch = 0; epoch < 2880; epoch++) {
             fprintf(file, "Epoch %d,", epoch + 1);
-            for (int svn = 0; svn < 32; svn++) {
+            for (int svn = 0; svn < N_SAT; svn++) {
                 fprintf(file, "%lf", sate_xyz[dim][epoch][svn]);
                 if (svn < 31) fprintf(file, ",");
                 else fprintf(file, "\n");
@@ -1180,14 +1471,14 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
 
         //读取sp3文件
         double ***sate_xyz;
-        malloc_double_3D(&sate_xyz, 3, 2880, 32);
+        malloc_double_3D(&sate_xyz, 3, 2880, N_SAT);
 
-        load_Sp3_From_Bin_File(&sate_xyz, 3, 2880, 32, sp3_load_file_path);
+        load_Sp3_From_Bin_File(&sate_xyz, 3, 2880, N_SAT, sp3_load_file_path);
 
         cutobs(&obs_temp, sate_xyz, sx, sy, sz, z_threshold);//筛选后的obs值存在obs_temp中
 
         double** P4;
-        malloc_Double_2D(&P4, 2880, 32);
+        malloc_Double_2D(&P4, 2880, N_SAT);
 
         P4 = pre_pro(&obs_temp);//对obs_temp进行预处理
 
@@ -1210,7 +1501,7 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
         //在字符串中添加"_P4.dat"
         strcat(sav_P4_filename, "_P4.dat");
 
-        save_P4_To_Bin_File(P4, 2880, 32, sav_P4_filename);//将P4存入文件中
+        save_P4_To_Bin_File(P4, 2880, N_SAT, sav_P4_filename);//将P4存入文件中
 
         free(site);
         free(sate_xyz);
@@ -1330,7 +1621,7 @@ void cutobs(Obs *obs_temp, double*** sate_xyz, double sx, double sy, double sz, 
     double** y = sate_xyz[1];
     double** z = sate_xyz[2];
 
-    for (int i = 0; i < 32; i++){
+    for (int i = 0; i < N_SAT; i++){
         for (int j = 0; j < 2880; j++){
             if (obs_temp->L1[j][i] == 0 || obs_temp->L2[j][i] == 0 || obs_temp->P1[j][i] == 0 || obs_temp->P2[j][i] == 0){
                 obs_temp->L1[j][i] = 0; obs_temp->L2[j][i] = 0; obs_temp->P1[j][i] = 0; obs_temp->P2[j][i] = 0;
@@ -1444,36 +1735,36 @@ double* XYZ2BLH(double x, double y, double z){
 double** pre_pro(Obs* obs_temp){
 
     double** L6; double** Li; double** Nw; double** P4; double** L4;
-    malloc_Double_2D(&L6, 2880, 32);
-    malloc_Double_2D(&Li, 2880, 32);
-    malloc_Double_2D(&Nw, 2880, 32);
-    malloc_Double_2D(&P4, 2880, 32);
-    malloc_Double_2D(&L4, 2880, 32);
+    malloc_Double_2D(&L6, 2880, N_SAT);
+    malloc_Double_2D(&Li, 2880, N_SAT);
+    malloc_Double_2D(&Nw, 2880, N_SAT);
+    malloc_Double_2D(&P4, 2880, N_SAT);
+    malloc_Double_2D(&L4, 2880, N_SAT);
 
     // Wide Lane Wavelength
     double lambda_w = c/(f1-f2);
     // MW observable
     //L6 = lambda_w*(obs_temp->L1 - obs_temp->L2) - (f1*obs.P1+f2*obs.P2)/(f1+f2);
     for (int i = 0; i < 2880; i++){
-        for (int j = 0; j < 32; j++){
+        for (int j = 0; j < N_SAT; j++){
             L6[i][j] = lambda_w*(obs_temp->L1[i][j] - obs_temp->L2[i][j]) - (f1*obs_temp->P1[i][j]+f2*obs_temp->P2[i][j])/(f1+f2);
         }
     }
     //Li = obs.L1 - f1*obs.L2/f2;
     for (int i = 0; i < 2880; i++){
-        for (int j = 0; j < 32; j++){
+        for (int j = 0; j < N_SAT; j++){
             Li[i][j] = obs_temp->L1[i][j] - f1*obs_temp->L2[i][j]/f2;
         }
     }
 
     //Nw = L6/lambda_w;
     for (int i = 0; i < 2880; i++){
-        for (int j = 0; j < 32; j++){
+        for (int j = 0; j < N_SAT; j++){
             Nw[i][j] = L6[i][j]/lambda_w;
         }
     }
 
-    for (int prn = 0; prn < 32; prn++){
+    for (int prn = 0; prn < N_SAT; prn++){
         int** arc; int arc_n = 0 ; int aaa = 2;
 
         //------divide arc---------------------------
@@ -1780,10 +2071,10 @@ void DCB_Estimation(){
     for (int i = 0; i < doy_diff_size; i++){
         int doy = doy_diff[i];
         double*** sate_xyz;
-        malloc_double_3D(&sate_xyz, 3, 2880, 32);
+        malloc_double_3D(&sate_xyz, 3, 2880, N_SAT);
 
         char* load_sp3_file_path = get_load_sp3_pathname(doy);
-        load_Sp3_From_Bin_File(&sate_xyz, 3, 2880, 32, load_sp3_file_path);
+        load_Sp3_From_Bin_File(&sate_xyz, 3, 2880, N_SAT, load_sp3_file_path);
         double* DCB_R; double* DCB_S; double* IONC;
         int DCB_R_size = 0; int DCB_S_size = 0; int IONC_size = 0;
         get_DCB(&DCB_R, &DCB_R_size, &DCB_S, &DCB_S_size, &IONC, &IONC_size,doy, sate_xyz, sitesInfo, sDCB_REF, order);
@@ -2014,26 +2305,26 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     double **y = sate_xyz[1];
     double **z = sate_xyz[2];
 
-    int n_r = 0; int n_s = 32;
+    int n_r = 0; int n_s = N_SAT;
     char **P4_load_filepath = get_doy_P4_filepath(doy, &n_r);
     sort_filenames(P4_load_filepath, n_r);
 
     //--check the number of each satellite's observations
     int *PRN;
-    malloc_Int_Vector(&PRN, 32);
+    malloc_Int_Vector(&PRN, N_SAT);
 
     //为DCB_S申请内存
-    *DCB_S = (double *) malloc(32 * sizeof(double));
+    *DCB_S = (double *) malloc(N_SAT * sizeof(double));
 
     //计算每个PRN的所有P4值
     for (int i = 0; i < n_r; i++) {
         double **P4;
         //为P4申请内存并赋初值为0
-        malloc_Double_2D(&P4, 2880, 32);
+        malloc_Double_2D(&P4, 2880, N_SAT);
 
-        load_P4_From_Bin_File(&P4, 2880, 32, P4_load_filepath[i]);
+        load_P4_From_Bin_File(&P4, 2880, N_SAT, P4_load_filepath[i]);
 
-        for (int j = 0; j < 32; j++) {
+        for (int j = 0; j < N_SAT; j++) {
             for (int k = 0; k < 2880; k++) {
                 if (P4[k][j] != 0) {
                     PRN[j]++;
@@ -2063,16 +2354,16 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
     for (int i=0; i<n_r;i++){
         double **P4;
         //为P4申请内存并赋初值为0
-        malloc_Double_2D(&P4, 2880, 32);
+        malloc_Double_2D(&P4, 2880, N_SAT);
         P4 = (double **) malloc(2880 * sizeof(double *));
         for (int j = 0; j < 2880; j++) {
-            P4[j] = (double *) malloc(32 * sizeof(double));
-            for (int k = 0; k < 32; k++) {
+            P4[j] = (double *) malloc(N_SAT * sizeof(double));
+            for (int k = 0; k < N_SAT; k++) {
                 P4[j][k] = 0;
             }
         }
 
-        load_P4_From_Bin_File(&P4, 2880, 32, P4_load_filepath[i]);
+        load_P4_From_Bin_File(&P4, 2880, N_SAT, P4_load_filepath[i]);
         //取P4_load_filepath[i]的前4个字符，赋给site
         char site[5];
         strncpy(site, P4_load_filepath[i], 4);
@@ -2184,7 +2475,7 @@ void get_Matrix(double** P4, double** x, double** y, double**z, double sx, doubl
     double sb = BL[0]; double sl = BL[1];
 
     for (int i = 0 ;i<(24/period); i++){
-        for (int j = 0; j<32; j++){
+        for (int j = 0; j<N_SAT; j++){
             for (int k=240*i; k<240*(i+1);k++) {
                 if (P4[k][j]==0){
                     continue;
@@ -2206,8 +2497,8 @@ void get_Matrix(double** P4, double** x, double** y, double**z, double sx, doubl
 
                 M_col[ith] = (-9.52437)*cos(IPPz);
                 M_col[n_r+j] = (-9.52437)*cos(IPPz);
-                int st = (order+1)*(order+1)*i+n_r+32;
-                int ed = (order+1)*(order+1)*(i+1)+n_r+32;
+                int st = (order+1)*(order+1)*i+n_r+N_SAT;
+                int ed = (order+1)*(order+1)*(i+1)+n_r+N_SAT;
 
 
                 get_Coef(&M_col, st, ed, b, s, order);
