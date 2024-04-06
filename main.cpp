@@ -18,6 +18,7 @@
 // --------------------------------------------------------------------------
 // 宏定义 Linux
 #define LINUX
+//#define OUTPUTCSV // 开启可以输出obs_output, sp3, P4数据为csv，方便debug
 
 #ifdef LINUX
 #include <sys/stat.h>
@@ -68,28 +69,38 @@ const char* r_opath = "/home/jason/projects/M_DCB_C/data/2021_029_data/obs_outpu
 const char* s_ipath = "/home/jason/projects/M_DCB_C/data/2021_029_data/sp3";// sp3
 //const char* s_opath = "/home/jason/projects/M_DCB_C/SP3_output_files";//
 const char* s_opath = "/home/jason/projects/M_DCB_C/data/2021_029_data/sp3_output";// sp3
-const char* i_ipath = "/home/jason/projects/M_DCB_C/IONEX_files";// ionex
-const char* i_opath = "/home/jason/projects/M_DCB_C/IONEX_output_files";// ionex
 //const char* m_p4_path = "/home/jason/projects/M_DCB_C/M_P4";// P4
 const char* m_p4_path = "/home/jason/projects/M_DCB_C/data/2021_029_data/M_P4";// P4
-const char* m_result_path = "/home/jason/projects/M_DCB_C/M_Result";// result
+//const char* m_result_path = "/home/jason/projects/M_DCB_C/M_Result";// result
+const char* m_result_path = "/home/jason/projects/M_DCB_C/data/2021_029_data/M_Result";// result
+
+const char* obs_output_csv = "/home/jason/projects/M_DCB_C/data/2021_029_data/obs_output_csv";
+const char* sp3_output_csv = "/home/jason/projects/M_DCB_C/data/2021_029_data/sp3_output_csv";
+const char* P4_output_csv = "/home/jason/projects/M_DCB_C/data/2021_029_data/P4_output_csv";
+
+
+const char* Constellation = "C";
+//const char* Constellation = "G";
+int N_SAT = 45;
+//int N_SAT = 32;
+
+const char* OBS_type_1 = "C2I";
+const char* OBS_type_2 = "C6I";
+
 int lim = 10;// el
 int order = 4;// order
 int r_file_num;
 double* DCB_rec;
-double f1 = 1575.42e6;
-double f2 = 1227.6e6;
+//double f1 = 1575.42e6;//GPS
+//double f2 = 1227.6e6;//GPS
+double f1 = 1561.098e6;//C2I
+double f2 = 1268.52e6;//C6I
 double pi = 3.14159265358979323846;
 double c = 299792458;
 int period = 2;
 SitesInfo sitesInfo;
 Obs obs;
 SDCB_REF sDCB_REF;
-
-const char* OBS_type_1 = "C2I";
-const char* OBS_type_2 = "C6I";
-const char* Constellation = "C";
-int N_SAT = 45;
 
 // --------------------------------------------------------------------------
 // -----------------------------函数声明--------------------------------------
@@ -140,7 +151,7 @@ void get_Matrix(double** P4, double** x, double** y, double**z, double sx, doubl
 double* get_legendre(int n, double x);
 void addRowTo2DMatrixNewLine(double ***M, double **M_sol, int *numRows, int numCols);
 void appendDoubleToVector(double **arr, int *size, double value);
-void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int* l_row_number, int sN_row_number);
+void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int sN_row_number);
 void addVectorToVector(double** l, double** sL, int* l_row_number, int sL_size);
 double* getDCB_R(double* R, int n_r);
 double* getDCB_S(double* R, int n_r, int n_s);
@@ -160,6 +171,9 @@ double* solve_least_squares(double** B, double* l, int B_row_num, int B_col_num,
 void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psitesInfo, Obs *pobs,const char* OBS_type_1, const char* OBS_type_2, const char* Constellation);
 void read_sp3_v304(const char* s_ipath, const char* s_opath);
 void get_smoothed_P4_v304(SitesInfo sitesInfo, double z_threshold, int flag);
+void writeObsToCSV(const char* filename, Obs* obs, int p1Rows, int p2Rows, int l1Rows, int l2Rows, int cols);
+void writeSP3ToCSV(char* sav_P4_filename_csv, double ***satexyz, int dim1, int dim2, int dim3);
+void writeP4ToCSV(const char* filename, double** P4, int rows, int cols);
 
 // 不同平台的函数声明
 #ifdef LINUX
@@ -182,9 +196,13 @@ int main() {
 #ifdef LINUX
     CreateFolderIfNotExist_Linux(r_opath);
     CreateFolderIfNotExist_Linux(s_opath);
-    CreateFolderIfNotExist_Linux(i_opath);
     CreateFolderIfNotExist_Linux(m_p4_path);
     CreateFolderIfNotExist_Linux(m_result_path);
+#ifdef OUTPUTCSV
+    CreateFolderIfNotExist_Linux(obs_output_csv);
+    CreateFolderIfNotExist_Linux(sp3_output_csv);
+    CreateFolderIfNotExist_Linux(P4_output_csv);
+#endif
 #elif defined(WINDOWS)
     CreateFolderIfNotExist_WINDOWS(r_opath);
     CreateFolderIfNotExist_WINDOWS(s_opath);
@@ -560,7 +578,7 @@ void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psites
 //        printf("File No.%d :%s, DOY: %d\n", i + 1, psitesInfo->name[i], psitesInfo->doy[i]);
 //    }
 
-    char line[256]; // 假设读文件过程中一行最多包含256个字符
+    char line[1024]; // 假设读文件过程中一行最多包含256个字符
     char filename[256]; //待读的文件名称
     int obst_n; char **obst;
     double h; double m; double s; int ep = 0;
@@ -581,6 +599,11 @@ void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psites
         file = fopen(filename, "r");    // 打开文件
         if (file == NULL) {
             perror("Can't Open File");
+        }
+
+        //如果filename为：ABMF00GLP_R_20210290000_01D_30S_MO.rnx，则
+        if (strcmp(filename, "/home/jason/projects/M_DCB_C/data/2021_029_data/obs/CEBR00ESP_R_20210290000_01D_30S_MO.rnx") == 0){
+            printf("debug");
         }
 
         // 逐行读取
@@ -665,16 +688,41 @@ void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psites
 
                     //根据OBS_type_1和OBS_type_2找到对应的index
                     malloc_Int_Vector(&loc, 4);
+
+                    //赋一个新的OBS_tpye_1_L，第一个字符是'L'，后两个字符是OBS_tpye_1的第2和3个字符
+                    char OBS_type_1_L[4];
+                    strncpy(OBS_type_1_L, "L", 1);
+                    strncpy(OBS_type_1_L + 1, OBS_type_1 + 1, 2);
+                    OBS_type_1_L[3] = '\0';
+                    //同理得到一个新的OBS_type_2_L
+                    char OBS_type_2_L[4];
+                    strncpy(OBS_type_2_L, "L", 1);
+                    strncpy(OBS_type_2_L + 1, OBS_type_2 + 1, 2);
+                    OBS_type_2_L[3] = '\0';
+
                     for (int j = 0; j < obst_n; j++){
                         //比较obst[j]和"OBS_type_1"字符串是否相同，如果相同，则给loc[0]赋值为j
                         if (strcmp(obst[j], OBS_type_1) == 0){
                             loc[2] = j;     //P1
-                            loc[0] = j+1;   //L1
                         }
+
+                        if(strcmp(obst[j], OBS_type_1_L) == 0){
+                            loc[0] = j;     //L1
+                        }
+
                         if (strcmp(obst[j], OBS_type_2) == 0) {
                             loc[3] = j;     //P2
-                            loc[1] = j+1;   //L2
                         }
+
+                        if(strcmp(obst[j], OBS_type_2_L) == 0){
+                            loc[1] = j;     //L1
+                        }
+                    }
+
+                    if(loc[2] == loc[0] || loc[3] == loc[1]){
+                        //打印filename
+                        printf("filename: %s----", filename);
+                        printf("OBS_type_1 or OBS_type_2 not found!\n");
                     }
 
                     // 释放obst
@@ -723,6 +771,8 @@ void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psites
                                 if (sv==31 || sv>46){
                                     continue;
                                 }
+
+
                                 //读取观测值
                                 double* obs_temp;
                                 malloc_Double_Vector(&obs_temp, 4);
@@ -765,21 +815,40 @@ void read_rinex_v304(const char* r_ipath, const char* r_opath, SitesInfo *psites
         fclose(file);
 
         char sav_dat_filename[256]; // 假设文件名长度不超过256个字符
+        char sav_csv_filename[256]; // 假设文件名长度不超过256个字符
 
         //生成文件名，路径为当前路径下的RINEX_output_files文件夹
         strcpy(sav_dat_filename, r_opath);
+        strcpy(sav_csv_filename, obs_output_csv);
 #ifdef LINUX
         strcat(sav_dat_filename, "/");
+        strcat(sav_csv_filename, "/");
 #elif defined(WINDOWS)
         strcat(sav_dat_filename, "\\");
+        strcat(sav_csv_filename, "\\");
 #else
 #endif
         strcat(sav_dat_filename, psitesInfo->name[i]);
         strcat(sav_dat_filename, ".dat");
+        strcat(sav_csv_filename, psitesInfo->name[i]);
+        strcat(sav_csv_filename, ".csv");
 
         writeObsToFile(sav_dat_filename, pobs, 2880, 2880, 2880, 2880, N_SAT);
+#ifdef OUTPUTCSV
+        writeObsToCSV(sav_csv_filename, pobs, 2880, 2880, 2880, 2880, N_SAT);
+#endif
 
         printf("Data %s written to file successfully.\n", sav_dat_filename);
+
+        //pobs全部清零
+        for (int j = 0; j < 2880; j++){
+            for (int k = 0; k < N_SAT; k++){
+                pobs->L1[j][k] = 0.0;
+                pobs->L2[j][k] = 0.0;
+                pobs->P1[j][k] = 0.0;
+                pobs->P2[j][k] = 0.0;
+            }
+        }
 
     }
     printf("----------Step 1: completings !----------\n");
@@ -1001,18 +1070,43 @@ void read_sp3_v304(const char* s_ipath, const char* s_opath){
         parse_sp3(pre_file_name, pre_xyz, Constellation);
         parse_sp3(cur_file_name, cur_xyz, Constellation);
         parse_sp3(next_file_name, next_xyz, Constellation);
+        //如果cur的某dim3对应的二维数组全为0，则将pre和next的对应dim3也赋值为0
+        for (int j = 0; j < N_SAT; j++){
+            int flag = 0;
+            //循环3x96的二维数组，如果全为0，则将pre和next的对应dim3也赋值为0
+            for (int k = 0; k < 3; k++){
+                for (int l = 0; l < 96; l++){
+                    if (cur_xyz[k][l][j] != 0.0){
+                        flag = 1;
+                        break;
+                    }
+                }
+            }
+            if (flag == 0){
+                for (int k = 0; k < 3; k++){
+                    for (int l = 0; l < 96; l++){
+                        pre_xyz[k][l][j] = 0.0;
+                        next_xyz[k][l][j] = 0.0;
+                    }
+                }
+            }
+        }
 
         interplotation(pre_xyz, cur_xyz, next_xyz, sate_xyz);
 
 //        int* DOY = GWeek_2_DOY(G_Week, Day_of_Week);
 
         char sav_filename[256]; // 假设文件名长度不超过256个字符
+        char sav_filename_csv[256]; // 假设文件名长度不超过256个字
         //生成文件名，路径为当前路径下的SP3_output_files文件夹
         strcpy(sav_filename, s_opath);
+        strcpy(sav_filename_csv, sp3_output_csv);
 #ifdef LINUX
         strcat(sav_filename, "/");
+        strcat(sav_filename_csv, "/");
 #elif defined(WINDOWS)
         strcat(sav_filename, "\\");
+        strcat(sav_filename_csv, "\\");
 #else
 #endif
         //添加G_Week和Day_of_Week到文件名中
@@ -1034,9 +1128,17 @@ void read_sp3_v304(const char* s_ipath, const char* s_opath){
         strcat(sav_filename, "sp3");
         strcat(sav_filename, ".dat");
 
+        strcat(sav_filename_csv, YEAR_str);
+        strcat(sav_filename_csv, "_");
+        strcat(sav_filename_csv, DOY_str);
+        strcat(sav_filename_csv, "sp3");
+        strcat(sav_filename_csv, ".csv");
+
         //saveSp3ToCSV(sate_xyz, sav_filename); //以csv格式存储sp3文件
         save_sp3_To_Bin_File(sate_xyz, 3, 2880, N_SAT, sav_filename);  //以二进制格式存储sp3文件
-
+#ifdef OUTPUTCSV
+        writeSP3ToCSV(sav_filename_csv, sate_xyz, 3, 2880, N_SAT);
+#endif
 //        free(pre_xyz);
 //        free(cur_xyz);
 //        free(next_xyz);
@@ -1219,13 +1321,15 @@ void parse_sp3(char* sp3_file, double ***xyz, const char* Constellation){
             //如果第二个字符与Constellation相同，则开始获取观测值
             if (line[1] == Constellation[0]) {
                 int sv = 0;
-                if (sscanf(line + 2, "%2d", &sv) == 1) {
-                }
-                if (sscanf(line + 4, "%14lf", &xyz[0][ep - 1][sv - 1]) == 1) {
-                }
-                if (sscanf(line + 18, "%14lf", &xyz[1][ep - 1][sv - 1]) == 1) {
-                }
-                if (sscanf(line + 32, "%14lf", &xyz[2][ep - 1][sv - 1]) == 1) {
+                sscanf(line + 2, "%2d", &sv);
+                if (sv>31){
+                    sscanf(line + 4, "%14lf", &xyz[0][ep - 1][sv - 2]);
+                    sscanf(line + 18, "%14lf", &xyz[1][ep - 1][sv - 2]);
+                    sscanf(line + 32, "%14lf", &xyz[2][ep - 1][sv - 2]);
+                }else{
+                    sscanf(line + 4, "%14lf", &xyz[0][ep - 1][sv - 1]);
+                    sscanf(line + 18, "%14lf", &xyz[1][ep - 1][sv - 1]);
+                    sscanf(line + 32, "%14lf", &xyz[2][ep - 1][sv - 1]);
                 }
                 continue;
             }
@@ -1628,10 +1732,13 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
         P4 = pre_pro(&obs_temp);//对obs_temp进行预处理
 
         char sav_P4_filename[256];
+        char sav_P4_filename_csv[256];
         //添加m_p4_path到sav_P4_filename
         strcpy(sav_P4_filename, m_p4_path);
+        strcpy(sav_P4_filename_csv, P4_output_csv);
 #ifdef LINUX
         strcat(sav_P4_filename, "/");
+        strcat(sav_P4_filename_csv, "/");
 #elif defined(WINDOWS)
         //添加“\\”到sav_P4_filename
         strcat(sav_P4_filename, "\\");
@@ -1639,14 +1746,19 @@ void get_smoothed_P4(SitesInfo sitesInfo, double z_threshold, int flag){
 #endif
         //先将site的值赋给sav_P4_filename
         strcat(sav_P4_filename, site);
+        strcat(sav_P4_filename_csv, site);
         //再取doy赋给sav_P4_filename
         char doy_str_3[6];
         snprintf(doy_str_3, sizeof(doy_str_3), "%d", doy);
         strncat(sav_P4_filename, doy_str_3, 5);
+        strncat(sav_P4_filename_csv, doy_str_3, 5);
         //在字符串中添加"_P4.dat"
         strcat(sav_P4_filename, "_P4.dat");
+        strcat(sav_P4_filename_csv, "_P4.csv");
 
         save_P4_To_Bin_File(P4, 2880, N_SAT, sav_P4_filename);//将P4存入文件中
+
+        writeP4ToCSV(sav_P4_filename_csv, P4, 2880, N_SAT);
 
         free(site);
         free(sate_xyz);
@@ -1776,32 +1888,40 @@ void get_smoothed_P4_v304(SitesInfo sitesInfo, double z_threshold, int flag){
         P4 = pre_pro(&obs_temp);//对obs_temp进行预处理
 
         char sav_P4_filename[256];
+        char sav_P4_filename_csv[256];
         //添加m_p4_path到sav_P4_filename
         strcpy(sav_P4_filename, m_p4_path);
+        strcpy(sav_P4_filename_csv, P4_output_csv);
 #ifdef LINUX
         strcat(sav_P4_filename, "/");
+        strcat(sav_P4_filename_csv, "/");
 #elif defined(WINDOWS)
         //添加“\\”到sav_P4_filename
         strcat(sav_P4_filename, "\\");
+        strcat(sav_P4_filename_csv, "\\");
 #else
 #endif
         //先将site的值赋给sav_P4_filename
         strcat(sav_P4_filename, site);
+        strcat(sav_P4_filename_csv, site);
         //再取doy赋给sav_P4_filename
         char doy_str_3[6];
         snprintf(doy_str_3, sizeof(doy_str_3), "%d", doy);
         strncat(sav_P4_filename, doy_str_3, 5);
+        strncat(sav_P4_filename_csv, doy_str_3, 5);
         //在字符串中添加"_P4.dat"
         strcat(sav_P4_filename, "_P4.dat");
+        strcat(sav_P4_filename_csv, "_P4.csv");
 
         save_P4_To_Bin_File(P4, 2880, N_SAT, sav_P4_filename);//将P4存入文件中
+#ifdef OUTPUTCSV
+        writeP4ToCSV(sav_P4_filename_csv, P4, 2880, N_SAT);
+#endif
 
         free(site);
         free(sate_xyz);
         free(P4);
 
-        //打印当前的循环次数
-        printf("Current loop: %d\n", i);
     }
     printf("----------Step 4: completings !----------\n");
 }
@@ -1836,6 +1956,121 @@ void writeObsToFile(const char* filename, Obs* obs, int p1Rows, int p2Rows, int 
     }
 
     fclose(file);
+}
+
+void writeObsToCSV(const char* filename, Obs* obs, int p1Rows, int p2Rows, int l1Rows, int l2Rows, int cols) {
+    FILE* file = fopen(filename, "w");
+    if (!file) {
+        printf("Unable to open file\n");
+        return;
+    }
+
+    // 对每个数组进行处理
+    const char* names[] = {"P1", "P2", "L1", "L2"};
+    int rows[] = {p1Rows, p2Rows, l1Rows, l2Rows};
+    for (int n = 0; n < 4; ++n) {
+        // 写入数组名称
+        fprintf(file, "%s\n", names[n]);
+        // 写入列索引
+        fprintf(file, "Index,");
+        for (int col = 0; col < cols; ++col) {
+            fprintf(file, "%d,", col + 1);
+        }
+        fprintf(file, "\n");
+
+        // 遍历并写入数组元素
+        for (int i = 0; i < rows[n]; ++i) {
+            fprintf(file, "%d,", i + 1); // 行索引
+            for (int j = 0; j < cols; ++j) {
+                double val;
+                switch (n) {
+                    case 0: val = obs->P1[i][j]; break;
+                    case 1: val = obs->P2[i][j]; break;
+                    case 2: val = obs->L1[i][j]; break;
+                    case 3: val = obs->L2[i][j]; break;
+                }
+                fprintf(file, "%f,", val);
+            }
+            fprintf(file, "\n"); // 结束当前行
+        }
+        fprintf(file, "\n"); // 数组之间的空行
+    }
+
+    fclose(file); // 关闭文件
+}
+
+void writeSP3ToCSV(char* sav_P4_filename_csv, double ***satexyz, int dim1, int dim2, int dim3) {
+    // 打开文件用于写入
+    FILE *file = fopen(sav_P4_filename_csv, "w");
+    if (file == NULL) {
+        printf("文件打开失败\n");
+        return;
+    }
+
+    // 遍历每个卫星
+    for (int sat = 0; sat < dim3; ++sat) {
+        // 写入卫星号
+        if (sat < 30){
+            fprintf(file, "C%02d\n", sat + 1); // 卫星编号从C01开始
+        }
+        else{
+            fprintf(file, "C%02d\n", sat + 2);
+        }
+        // 写入轴标签和epoch索引
+        fprintf(file, ",X,Y,Z\n");
+        for (int epoch = 0; epoch < dim2; ++epoch) {
+            // 在每一行开始写入epoch索引
+            fprintf(file, "%d", epoch + 1);
+            for (int axis = 0; axis < dim1; ++axis) {
+                // 写入x, y, z轴的值
+                fprintf(file, ",%.6f", satexyz[axis][epoch][sat]);
+            }
+            fprintf(file, "\n");
+        }
+        // 在每个二维数组之后留一个空行
+        fprintf(file, "\n");
+    }
+
+    // 关闭文件
+    fclose(file);
+}
+
+void writeP4ToCSV(const char* filename, double** P4, int rows, int cols){
+    FILE* file = fopen(filename, "w");
+    if (!file) {
+        printf("Unable to open file\n");
+        return;
+    }
+
+    // 对每个数组进行处理
+    const char* names[] = {"P4"};
+    int row[] = {rows};
+    for (int n = 0; n < 1; ++n) {
+        // 写入数组名称
+        fprintf(file, "%s\n", names[n]);
+        // 写入列索引
+        fprintf(file, "Index,");
+        for (int col = 0; col < cols; ++col) {
+            fprintf(file, "%d,", col + 1);
+        }
+        fprintf(file, "\n");
+
+        // 遍历并写入数组元素
+        for (int i = 0; i < row[n]; ++i) {
+            fprintf(file, "%d,", i + 1); // 行索引
+            for (int j = 0; j < cols; ++j) {
+                double val;
+                switch (n) {
+                    case 0: val = P4[i][j]; break;
+                }
+                fprintf(file, "%f,", val);
+            }
+            fprintf(file, "\n"); // 结束当前行
+        }
+        fprintf(file, "\n"); // 数组之间的空行
+    }
+
+    fclose(file); // 关闭文件
 }
 
 void readObsFromFile(const char* filename, Obs* obs) {
@@ -2341,6 +2576,16 @@ void save_P4_To_Bin_File(double **P4, int dim1, int dim2, const char *filename) 
 }
 
 void load_P4_From_Bin_File(double ***P4, int dim1, int dim2, const char *filename) {
+//    char* filename_full;
+//    strcpy(filename_full, m_p4_path);
+//#ifdef LINUX
+//    strcat(filename_full, "/");
+//#elif defined(WINDOWS)
+//    strcat(filename_full, "\\");
+//#else
+//#endif
+//    strcat(filename_full, filename);
+
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
         perror("Failed to open file");
@@ -2374,8 +2619,6 @@ void DCB_Estimation(){
         double* DCB_R; double* DCB_S; double* IONC;
         int DCB_R_size = 0; int DCB_S_size = 0; int IONC_size = 0;
         get_DCB(&DCB_R, &DCB_R_size, &DCB_S, &DCB_S_size, &IONC, &IONC_size,doy, sate_xyz, sitesInfo, sDCB_REF, order);
-
-
 
         char* DCB_R_final_result_filename = generate_final_result_file_pathname(doy, "DCB_R", m_result_path);
         char* DCB_S_final_result_filename = generate_final_result_file_pathname(doy, "DCB_S", m_result_path);
@@ -2618,7 +2861,17 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
         //为P4申请内存并赋初值为0
         malloc_Double_2D(&P4, 2880, N_SAT);
 
-        load_P4_From_Bin_File(&P4, 2880, N_SAT, P4_load_filepath[i]);
+        char * P4_load_filepath_full = (char *) malloc(256 * sizeof(char));
+        strcpy(P4_load_filepath_full, m_p4_path);
+#ifdef LINUX
+        strcat(P4_load_filepath_full, "/");
+#elif defined(WINDOWS)
+        strcat(P4_load_filepath_full, "\\");
+#else
+#endif
+        strcat(P4_load_filepath_full, P4_load_filepath[i]);
+
+        load_P4_From_Bin_File(&P4, 2880, N_SAT, P4_load_filepath_full);
 
         for (int j = 0; j < N_SAT; j++) {
             for (int k = 0; k < 2880; k++) {
@@ -2659,7 +2912,17 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
             }
         }
 
-        load_P4_From_Bin_File(&P4, 2880, N_SAT, P4_load_filepath[i]);
+        char * P4_load_filepath_full = (char *) malloc(256 * sizeof(char));
+        strcpy(P4_load_filepath_full, m_p4_path);
+#ifdef LINUX
+        strcat(P4_load_filepath_full, "/");
+#elif defined(WINDOWS)
+        strcat(P4_load_filepath_full, "\\");
+#else
+#endif
+        strcat(P4_load_filepath_full, P4_load_filepath[i]);
+
+        load_P4_From_Bin_File(&P4, 2880, N_SAT, P4_load_filepath_full);
         //取P4_load_filepath[i]的前4个字符，赋给site
         char site[5];
         strncpy(site, P4_load_filepath[i], 4);
@@ -2686,10 +2949,26 @@ void get_DCB(double** DCB_R, int* DCB_R_size, double** DCB_S, int* DCB_S_size, d
         get_Matrix(P4, x, y, z, sx, sy, sz, n_s, n_r, ith, order, &sN, &sL, est_num, &sN_row_number, &sL_number);
 
         //把sN(n*337二维)的结果纵向添加进B矩阵(m*337二维)，得到((m+n)*337)的矩阵
-        addMartixDownToAnother(&B, &sN, est_num, &B_row_number, &l_row_number, sN_row_number);
+        addMartixDownToAnother(&B, &sN, est_num, &B_row_number, sN_row_number);
         addVectorToVector(&l, &sL, &l_row_number, sL_number);
     }
 
+    //C19参考星条件
+    //创建一个数组,长度为est_num,其中第n_r+18个元素为1，其余为0
+    double* C19 = (double *) malloc(est_num * sizeof(double));
+    for (int i = 0; i < est_num; i++){
+        if (i == n_r+18){
+            C19[i] = 1;
+        }else{
+            C19[i] = 0;
+        }
+    }
+
+    //添加参考星条件
+//    addRowTo2DMatrixNewLine(&B, &C19, &B_row_number, est_num);
+//    appendDoubleToVector(&l, &l_row_number, 10.474);
+
+    Wx = -21.94;
 
     // 添加零均值条件
     addRowTo2DMatrixNewLine(&B, &C, &B_row_number, est_num);
@@ -3001,7 +3280,7 @@ void appendDoubleToVector(double **arr, int *size, double value) {
     (*arr)[(*size) - 1] = value;
 }
 
-void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int* l_row_number, int sN_row_number){
+void addMartixDownToAnother(double ***B, double*** sN, int est_num, int* B_row_number, int sN_row_number){
     // 增加行数
     (*B_row_number) += sN_row_number;
 
